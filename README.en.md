@@ -61,17 +61,6 @@ The script creates a native Python 3.12 environment in `~/Library/Application Su
 
 Audio, transcripts, memory and models stay on your computer. Network access is only used for: model downloads (Hugging Face, first run), the weather (Open-Meteo: the city name), Wikipedia and web search when you ask for things that change over time (the text of the question), and the pages it reads to write a factual document. Powers over your Mac (reminders, calendar, music, apps, Shortcuts, screen) can be switched on and off one by one in Settings; the ones that look at the screen are off by default. Details: [docs/privacy.md](docs/privacy.md).
 
-## The physical object
-
-The project started as a transparent desk sphere with a line of light inside (display, half-silvered mirror, Raspberry Pi 5, echo-cancelling microphones). The mechanical design, bill of materials, printable files and an optical simulator are in [hardware/](hardware/). **It has not been built**: the Mac app is the working part of the project.
-
-## Development
-
-```bash
-cd software
-python -m pip install -e ".[test]"
-python -m pytest -q          # 1500+ tests, no audio and no real models needed
-```
 
 ## Known limits
 
