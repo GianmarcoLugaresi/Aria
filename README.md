@@ -79,20 +79,6 @@ I poteri sul Mac (promemoria, calendario, musica, app, Scorciatoie, schermo) si 
 
 In [windows/](windows/) c'è una versione per Windows 10/11: stessa schermata e stesso cervello, con chatbot in Ollama e Whisper con faster-whisper. È stata provata solo in parte e senza un PC Windows vero: leggi lo [stato onesto](windows/README.md) prima di installarla.
 
-## L'oggetto fisico
-
-Il progetto nasce come una sfera trasparente da scrivania con una linea di luce dentro (display, specchio semiriflettente, Raspberry Pi 5, microfoni con cancellazione d'eco). Il progetto meccanico, l'elenco dei pezzi, i file da stampare e un simulatore dell'ottica sono in [hardware/](hardware/). **Non è stato costruito**: è un progetto di cui l'app per Mac è la parte funzionante.
-
-## Com'è fatto il repository
-
-```
-app/         l'app per Mac in Swift: barra dei menu, scorciatoia, overlay, impostazioni, installer e script che crea l'app scaricabile
-software/    il «cervello» in Python (pacchetto aria): conversazione, intenzioni, strumenti, memoria; test e script
-anima/       il carattere di Aria (persona_compatta.md per i modelli piccoli, persona.md esteso)
-windows/     l'involucro per Windows e il suo installer
-hardware/    l'oggetto fisico: CAD parametrico, STL, simulatore ottico, pagina per il display
-docs/        documentazione
-```
 
 ## Sviluppo e test
 
