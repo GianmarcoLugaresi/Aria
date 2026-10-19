@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aria-win"
+version = "0.1.0"
+description = "Aria per Windows: icona nella barra, scorciatoia e schermata attorno al cervello Python di Aria"
+requires-python = ">=3.10"
+dependencies = ["websockets>=13", "pystray>=0.19", "pywebview>=5.3", "pillow>=10"]
+
+[project.optional-dependencies]
+volume = ["pycaw"]
+
+[project.gui-scripts]
+aria-win = "aria_win.app:main"
+
+[tool.setuptools.packages.find]
+include = ["aria_win*"]

@@ -1,0 +1,251 @@
+{
+  "parametri": {
+    "ped_d": 210.0,
+    "wall": 2.4,
+    "floor": 3.0,
+    "cup_h": 90.0,
+    "band_h": 12.0,
+    "plate_t": 4.0,
+    "sphere_d": 160.0,
+    "neck_id": 100.0,
+    "neck_wall": 3.0,
+    "neck_h": 12.0,
+    "sphere_wall": 3.0,
+    "lip_clear": 0.7,
+    "lip_h": 8.0,
+    "disc_d": 110.0,
+    "disc_t": 2.0,
+    "disc_slot": 2.5,
+    "disc_cy": 5.0,
+    "disc_low": 2.5,
+    "disp_w": 115.0,
+    "disp_t": 17.0,
+    "disp_clear": 0.4,
+    "active_d": 87.6,
+    "win_d": 90.0,
+    "mic_len": 110.0,
+    "mic_w": 20.0,
+    "mic_t": 3.0,
+    "mic_pitch": 33.0,
+    "mic_y": -72.0,
+    "spk_frame_d": 87.0,
+    "spk_depth": 38.0,
+    "spk_cut_d": 66.0,
+    "spk_x": -48.0,
+    "spk_y": 0.0,
+    "pi_x": 50.0,
+    "pi_y": 6.0,
+    "pi_standoff": 6.0,
+    "flex_w": 86.0,
+    "flex_d": 35.0
+  },
+  "pezzi": {
+    "01_corpo": {
+      "volume_cm3": 261.6,
+      "ingombro_stampa": [
+        210.0,
+        210.0,
+        102.0
+      ],
+      "orientamento": "su",
+      "manifold": true
+    },
+    "02_anello_diffusore": {
+      "volume_cm3": 9.4,
+      "ingombro_stampa": [
+        210.0,
+        210.0,
+        12.0
+      ],
+      "orientamento": "su",
+      "manifold": true
+    },
+    "03_piano_superiore": {
+      "volume_cm3": 127.0,
+      "ingombro_stampa": [
+        210.0,
+        210.0,
+        56.0
+      ],
+      "orientamento": "su",
+      "manifold": true
+    },
+    "04_telaio_display": {
+      "volume_cm3": 35.0,
+      "ingombro_stampa": [
+        180.0,
+        145.4,
+        17.0
+      ],
+      "orientamento": "capovolto",
+      "manifold": true
+    },
+    "05_fermo_display": {
+      "volume_cm3": 15.2,
+      "ingombro_stampa": [
+        123.8,
+        123.8,
+        2.5
+      ],
+      "orientamento": "su",
+      "manifold": true
+    },
+    "06_fermo_altoparlante": {
+      "volume_cm3": 5.8,
+      "ingombro_stampa": [
+        98.2,
+        102.3,
+        4.0
+      ],
+      "orientamento": "su",
+      "manifold": true
+    },
+    "T1_prova_collo_sfera": {
+      "volume_cm3": 29.7,
+      "ingombro_stampa": [
+        128.0,
+        128.0,
+        11.0
+      ],
+      "orientamento": "su"
+    },
+    "T2_prova_tasca_display": {
+      "volume_cm3": 23.7,
+      "ingombro_stampa": [
+        123.8,
+        123.8,
+        8.0
+      ],
+      "orientamento": "su"
+    },
+    "T3_prova_altoparlante": {
+      "volume_cm3": 14.9,
+      "ingombro_stampa": [
+        111.0,
+        111.0,
+        3.0
+      ],
+      "orientamento": "su"
+    },
+    "T4_prova_fessura_disco": {
+      "volume_cm3": 4.0,
+      "ingombro_stampa": [
+        18.0,
+        22.0,
+        12.0
+      ],
+      "orientamento": "su"
+    },
+    "T5_prova_barra_microfoni": {
+      "volume_cm3": 6.9,
+      "ingombro_stampa": [
+        119.0,
+        29.0,
+        3.0
+      ],
+      "orientamento": "su"
+    }
+  },
+  "interferenze": {
+    "corpo x disco": 0.0,
+    "corpo x sfera": 0.0,
+    "corpo x display": 0.0,
+    "corpo x barra_mic": 0.0,
+    "corpo x altoparlante": -0.0,
+    "corpo x pi5": 0.0,
+    "corpo x flex": 0.0,
+    "corpo x strip_led": 0.0,
+    "diffusore x disco": 0.0,
+    "diffusore x sfera": 0.0,
+    "diffusore x display": 0.0,
+    "diffusore x barra_mic": 0.0,
+    "diffusore x altoparlante": 0.0,
+    "diffusore x pi5": 0.0,
+    "diffusore x flex": 0.0,
+    "diffusore x strip_led": 0.0,
+    "piano x disco": 0.0,
+    "piano x sfera": 0.0,
+    "piano x display": -0.0,
+    "piano x barra_mic": -0.0,
+    "piano x altoparlante": 0.0,
+    "piano x pi5": 0.0,
+    "piano x flex": 0.0,
+    "piano x strip_led": 0.0,
+    "telaio x disco": 0.0,
+    "telaio x sfera": 0.0,
+    "telaio x display": 0.0,
+    "telaio x barra_mic": 0.0,
+    "telaio x altoparlante": 0.0,
+    "telaio x pi5": 0.0,
+    "telaio x flex": 0.0,
+    "telaio x strip_led": 0.0,
+    "fermo_display x disco": 0.0,
+    "fermo_display x sfera": 0.0,
+    "fermo_display x display": 0.0,
+    "fermo_display x barra_mic": 0.0,
+    "fermo_display x altoparlante": 0.0,
+    "fermo_display x pi5": 0.0,
+    "fermo_display x flex": 0.0,
+    "fermo_display x strip_led": 0.0,
+    "fermo_altoparlante x disco": 0.0,
+    "fermo_altoparlante x sfera": 0.0,
+    "fermo_altoparlante x display": 0.0,
+    "fermo_altoparlante x barra_mic": 0.0,
+    "fermo_altoparlante x altoparlante": 0.0,
+    "fermo_altoparlante x pi5": 0.0,
+    "fermo_altoparlante x flex": 0.0,
+    "fermo_altoparlante x strip_led": 0.0,
+    "corpo x diffusore": 0.0,
+    "corpo x piano": 0.0,
+    "corpo x telaio": 0.0,
+    "corpo x fermo_display": 0.0,
+    "corpo x fermo_altoparlante": -0.0,
+    "diffusore x piano": 0.0,
+    "diffusore x telaio": 0.0,
+    "diffusore x fermo_display": 0.0,
+    "diffusore x fermo_altoparlante": 0.0,
+    "piano x telaio": 0.0,
+    "piano x fermo_display": 0.0,
+    "piano x fermo_altoparlante": 0.0,
+    "telaio x fermo_display": 0.0,
+    "telaio x fermo_altoparlante": 0.0,
+    "fermo_display x fermo_altoparlante": 0.0,
+    "display x barra_mic": 0.0,
+    "display x altoparlante": 0.0,
+    "display x pi5": 0.0,
+    "display x flex": 0.0,
+    "display x strip_led": 0.0,
+    "barra_mic x altoparlante": 0.0,
+    "barra_mic x pi5": 0.0,
+    "barra_mic x flex": 0.0,
+    "barra_mic x strip_led": 0.0,
+    "altoparlante x pi5": 0.0,
+    "altoparlante x flex": 0.0,
+    "altoparlante x strip_led": 0.0,
+    "pi5 x flex": 0.0,
+    "pi5 x strip_led": 0.0,
+    "flex x strip_led": 0.0
+  },
+  "note": [],
+  "problemi": [],
+  "ottica": {
+    "z_piano": 106.0,
+    "centro_disco": [
+      0.0,
+      5.0,
+      147.4
+    ],
+    "centro_sfera_z": 176.6,
+    "altezza_totale_mm": 262.6,
+    "fantasma_piano_y": 37.4,
+    "nota": "il fantasma è un disco verticale dietro il disco semiriflettente; il bordo del display lato fronte diventa il bordo alto",
+    "centro_fantasma": [
+      0.0,
+      50.4,
+      152.4
+    ],
+    "schermo_non_visibile_sotto_deg_pixel_luminosi": 40.0,
+    "schermo_non_visibile_sotto_deg_bordo_vetro_attivo": 65.4
+  },
+  "filamento_stimato_g": 490
+}

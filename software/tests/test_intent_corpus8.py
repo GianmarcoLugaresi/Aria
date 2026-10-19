@@ -1,0 +1,17 @@
+"""Terza raccolta (tests/intent_corpus8.py, scritta di notte pensando a come si parla davvero): ogni richiesta va allo strumento giusto, la chiacchiera non fa partire niente."""
+import pytest
+
+from intent_corpus8 import FILES, NEG8, POS8
+from aria import intent
+
+
+@pytest.mark.parametrize("text,tools,parts", POS8)
+def test_the_request_goes_to_the_right_tool(text, tools, parts):
+    c = intent.detect(text, FILES, screen_on=True)
+    assert c is not None and c.name in tools, (text, c)
+    assert all(p in c.arg.lower() for p in parts), (text, c.arg, parts)
+
+
+@pytest.mark.parametrize("text", NEG8)
+def test_chitchat_starts_nothing(text):
+    assert intent.detect(text, FILES, screen_on=True) is None, text

@@ -1,0 +1,16 @@
+[Unit]
+Description=Aria · display (Chromium a schermo intero)
+After=aria.service graphical.target
+Wants=aria.service
+
+[Service]
+User=pi
+Environment=DISPLAY=:0
+# modalità fantasma + prestazioni: il Raspberry non regge le sfocature a 800x800
+ExecStart=/usr/bin/chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito --autoplay-policy=no-user-gesture-required \
+    "file:///home/pi/Aria/hardware/display/index.html?ghost=1&perf=1&size=512"
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,61 @@
+# Aria per Windows · configurazione. Si trova in  %APPDATA%\Aria\config.yaml
+# Dopo averla modificata: icona di Aria nella barra ▸ Esci, poi riaprila.
+
+name: Aria
+location: {city: null, lat: null, lon: null}    # la città te la chiede Aria e la ricorda lei; scrivila qui solo per forzarla (con lat e lon)
+persona_file: persona.md                         # il carattere di Aria (accanto a questo file): puoi modificarlo a piacere
+
+wake:
+  phrase: "hey aria"
+  mode: stt              # ascolta con il rilevatore di voce e riconosce «hey aria» con Whisper (nessun addestramento)
+  stt: null              # null = usa lo stesso Whisper della conversazione (un solo modello in memoria)
+
+audio:
+  input_device: null     # null = microfono predefinito di Windows
+  output_device: null
+  input_rate: 16000
+  output_rate: 24000
+  save_utterances: false # true = salva le ultime 40 frasi che dici come file audio in %USERPROFILE%\.aria\utterances (solo sul tuo PC): serve per capire gli errori di riconoscimento
+  barge_in: false        # true = puoi interromperla parlando, ma SOLO con le cuffie (senza cancellazione dell'eco si sentirebbe da sola)
+  barge_in_words: false  # l'interruzione a parole usa il riconoscimento integrato del Mac: su Windows non c'è. Si ferma con la scorciatoia (Ctrl+Alt+Spazio) o con le cuffie + barge_in
+  voice_processing: false
+  volume: 0.9
+
+turn:
+  end_silence_ms: 800    # silenzio che chiude la tua frase
+  follow_up_timeout_s: 8 # dopo la risposta resta in ascolto: non serve richiamarla
+
+# Il «cervello»: tutto locale. Il chatbot gira in Ollama (https://ollama.com, gratis), Whisper (faster-whisper) per capirti, Pocket TTS per la voce.
+# Con una scheda NVIDIA l'installer mette Whisper su GPU; senza, va sul processore (modello «small»).
+brains:
+  - name: pc
+    llm:
+      base_url: http://127.0.0.1:11434/v1
+      model: "gemma3:4b"      # cambia con quello che hai in Ollama (ollama list); più grande = più intelligente e più lento
+      temperature: 0.65       # una voce amica, non un generatore di stranezze
+      max_tokens: 240
+      extra_body: {}
+    stt: {kind: faster-whisper, model: small, compute_type: int8}      # con GPU NVIDIA: {kind: faster-whisper, model: large-v3-turbo, device: cuda, compute_type: float16}
+    tts: {kind: pocket, language: italian, voice: lola}                # voce cambiabile dal menu
+
+tools:
+  web_search: {kind: ddgs, searxng_url: null, max_results: 4}
+
+memory: {enabled: true, max_facts_in_prompt: 6, history_turns: 6}
+
+# Quanto «umana»: ognuna di queste cose si può spegnere (true = acceso)
+human:
+  greet: true
+  dialog_acts: true      # «grazie», «ok», «ciao», «come?»: risposte brevi e varie, senza passare dal chatbot
+  hints: true            # note di regia per ogni risposta (come stai, quanto lunga, non ripetersi) + esempi del tono giusto
+  rhythm: true           # una mossa precisa, un budget di parole e mai due domande di fila per pareri, spiegazioni, sfoghi…
+  clean_replies: true    # toglie «Certamente!», le esperienze inventate, le parole inglesi
+  pauses: true
+  ask_again: true        # se non ha capito bene dice «scusa, puoi ripetere?» invece di rispondere a caso
+  max_sentences: 3
+  max_sentences_long: 20
+  long_max_tokens: 900
+  name_every: 6
+display: {host: 127.0.0.1, port: 8765, fps: 30}
+leds: {kind: none}
+log_level: INFO

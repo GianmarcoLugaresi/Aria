@@ -1,0 +1,14 @@
+# Configurazione per provare tutto sul tuo Mac (Ollama gia' installato).
+name: Aria
+location: {city: null, lat: null, lon: null}
+persona_file: ../anima/persona_compatta.md
+brains:
+  - name: mac-ollama
+    llm:
+      base_url: http://localhost:11434/v1
+      model: "gemma3:4b"                       # leggero (3,3 GB). Più qualità ma pesante: "Gemma4-12B:latest"
+      temperature: 0.85
+      max_tokens: 160
+      extra_body: {}                            # con Gemma 4 / Qwen 3.5 su Ollama metti {reasoning_effort: none}
+    stt: {kind: faster-whisper, model: small, compute_type: int8}
+    tts: {kind: piper, model_path: models/it_IT-paola-medium.onnx}

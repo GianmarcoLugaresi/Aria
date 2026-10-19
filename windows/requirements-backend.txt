@@ -1,0 +1,12 @@
+# Librerie del «cervello» di Aria su Windows (l'installer le mette nell'ambiente Python di Aria)
+numpy
+httpx
+pyyaml
+websockets
+sounddevice
+faster-whisper
+onnxruntime
+pocket-tts
+ddgs
+pypdf
+tzdata

@@ -1,0 +1,15 @@
+[Unit]
+Description=Aria · assistente vocale
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/Aria/software
+ExecStart=/home/pi/Aria/software/.venv/bin/python -m aria.main --config /home/pi/Aria/software/config.yaml
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

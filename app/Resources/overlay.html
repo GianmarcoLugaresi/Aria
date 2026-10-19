@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aria</title>
+<style>
+  :root { --txt: #f5f6fb; --mut: rgba(245,246,251,.56); --dim: rgba(245,246,251,.30); }
+  * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    font: 15px/1.35 -apple-system, "SF Pro Text", system-ui, sans-serif; color: var(--txt); -webkit-font-smoothing: antialiased; }
+  /* anteprima nel browser: ?card=1 disegna un fondo vetro scuro (nell'app lo fa macOS) */
+  html:not(.card-mode) body:not(.card) { background: rgba(10, 12, 24, .34); }      /* velatura: contrasto garantito anche sul vetro chiaro */
+  body.card { background: radial-gradient(120% 120% at 50% 0%, #20233b 0%, #11131f 58%, #0a0b12 100%); border-radius: 32px; }
+  .wrap { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 16px 26px 20px; }
+  .top { display: flex; align-items: center; justify-content: space-between; height: 20px; font-size: 12px; letter-spacing: .02em; }
+  .chip { display: flex; align-items: center; gap: 8px; color: var(--mut); font-weight: 500; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c, #b0beff); box-shadow: 0 0 9px var(--c, #b0beff); transition: background .5s, box-shadow .5s; }
+  .dot.pulse { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.6); opacity: .5; } }
+  .hint { color: var(--dim); font-size: 11px; }
+  .hint kbd { font: inherit; padding: 1px 5px; border-radius: 5px; background: rgba(255,255,255,.09); }
+  .stage { flex: 1; min-height: 120px; position: relative; margin: 2px 0 0; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .cap { height: 78px; display: flex; flex-direction: column; justify-content: flex-end; gap: 5px;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26%); mask-image: linear-gradient(to bottom, transparent 0, #000 26%); }
+  .you { color: var(--mut); font-size: 13.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .3s; }
+  .you.on { opacity: 1; }
+  .aria { font-size: 17px; font-weight: 500; line-height: 1.3; text-align: center; max-height: 46px; overflow: hidden; }
+  .aria span { opacity: 0; animation: fade .4s forwards; }
+  @keyframes fade { to { opacity: 1; } }
+  /* barra di caricamento in basso: compare quando Aria lavora a qualcosa di lungo (un documento, una ricerca) */
+  .wrap { transition: padding-bottom .4s ease; }
+  body.busy .wrap { padding-bottom: 50px; }
+  .pbar { position: absolute; left: 26px; right: 26px; bottom: 15px; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .4s ease, transform .4s ease; }
+  body.busy .pbar { opacity: 1; transform: none; }
+  .pbar-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; font-size: 11.5px; letter-spacing: .02em; color: var(--mut); }
+  .pbar-row b { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--dim); }
+  .track { position: relative; height: 4px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,.12); }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px; background: linear-gradient(90deg, #68e0ff, #c89cff 55%, #ffa8d0); box-shadow: 0 0 12px rgba(200,156,255,.55); }
+  .track.ind .fill { width: 34%; animation: slide 1.5s ease-in-out infinite; }
+  @keyframes slide { from { left: -36%; } to { left: 102%; } }
+  .muted-badge { display: none; color: #ffb44d; font-size: 11.5px; margin-left: 6px; }
+  body.muted .muted-badge { display: inline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="chip"><span class="dot" id="dot"></span><span id="label">Pronta</span><span class="muted-badge">mic silenziato</span></div>
+    <div class="hint"><kbd>⌥</kbd> <kbd>Spazio</kbd> per fermarla</div>
+  </div>
+  <div class="stage"><canvas id="c"></canvas></div>
+  <div class="cap">
+    <div class="you" id="you"></div>
+    <div class="aria" id="aria"></div>
+  </div>
+  <div class="pbar" id="prog"><div class="pbar-row"><span id="plabel"></span><b id="ppct"></b></div><div class="track" id="ptrack"><div class="fill" id="pfill"></div></div></div>
+</div>
+<script src="neural.js"></script>
+<script>
+/* Overlay di Aria. Si collega al backend (ws://127.0.0.1:8765): stato, livello voce, sottotitoli.
+   Parametri: ?demo=1 (stati finti) &card=1 (fondo scuro, per il browser) &ws=ws://... */
+const Q = new URLSearchParams(location.search);
+if (Q.get('card') === '1') document.body.classList.add('card');
+const DEMO = Q.get('demo') === '1';
+const DEMO_PROGRESS = Q.get('progress') === '1';
+const LABEL = {idle: 'Pronta', listening: 'Ti ascolto', thinking: 'Ci penso', speaking: 'Aria', error: 'Qualcosa non va'};
+const DOT = {idle: '#b0beff', listening: '#68e0ff', thinking: '#c89cff', speaking: '#ffa8d0', error: '#ff7660'};
+const brain = new NeuralBrain(document.getElementById('c'), {nodes: 20});
+const you = document.getElementById('you'), aria = document.getElementById('aria');
+let state = 'idle', muted = false, clr;
+
+function setState(s) {
+  if (!LABEL[s]) return;
+  state = s; brain.setState(s);
+  document.getElementById('label').textContent = LABEL[s];
+  const d = document.getElementById('dot'); d.style.setProperty('--c', DOT[s]); d.classList.toggle('pulse', s !== 'idle');
+  if (s === 'listening') aria.innerHTML = '';
+  clearTimeout(clr);
+  if (s === 'idle') clr = setTimeout(() => { you.classList.remove('on'); aria.innerHTML = ''; }, 2600);
+}
+function handle(m) {
+  if (m.state) setState(m.state);
+  if (m.level !== undefined) brain.setLevel(+m.level);
+  if (m.type === 'progress') progress(m);
+  if (m.type === 'snapshot' && m.progress) progress({active: true, ...m.progress});
+  if (m.muted !== undefined) { muted = !!m.muted; document.body.classList.toggle('muted', muted); }
+  if (m.type === 'transcript') {
+    if (m.role === 'user') { you.textContent = '“' + m.text + '”'; you.classList.add('on'); aria.innerHTML = ''; }
+    else if (m.role === 'aria') {
+      /* con "id" e' la stessa frase che cresce parola per parola, a tempo con la voce: se ne aggiorna il testo invece di aggiungerne un'altra */
+      let s = m.id !== undefined ? aria.querySelector('[data-id="' + m.id + '"]') : null;
+      if (!s) { s = document.createElement('span'); if (m.id !== undefined) s.dataset.id = m.id; aria.appendChild(s); }
+      s.dataset.full = m.text;
+      s.textContent = (s.previousSibling ? ' ' : '') + m.text;
+      fitCaption();
+    }
+  }
+}
+/* sottotitoli: se non stanno nello spazio, spariscono prima le frasi vecchie e poi le prime parole della frase in corso (si legge sempre quello che la voce sta dicendo adesso) */
+function fitCaption() {
+  while (aria.scrollHeight > aria.clientHeight + 2) {
+    if (aria.childNodes.length > 1) { aria.removeChild(aria.firstChild); continue; }
+    const sp = aria.firstChild, t = sp.textContent, i = t.indexOf(' ', 2);
+    if (i < 0) break;
+    sp.textContent = '…' + t.slice(i);
+  }
+}
+window.ariaState = setState;
+
+/* ---------- barra di caricamento ---------- */
+const P = {on: false, last: 0, shown: 0, from: 0, until: 0, eta: 10, t0: 0, ind: true, seen: 0, hide: 0};
+function progress(m) {
+  const body = document.body, track = document.getElementById('ptrack');
+  clearTimeout(P.hide);
+  if (m.active === false) {                                      // finito: la barra arriva in fondo, poi sparisce
+    if (!P.on) return;
+    P.on = false; P.ind = false; P.from = P.until = 1; P.t0 = performance.now(); track.classList.remove('ind');
+    document.getElementById('plabel').textContent = 'Fatto'; document.getElementById('ppct').textContent = '100%';
+    P.hide = setTimeout(() => { body.classList.remove('busy'); P.shown = 0; document.getElementById('pfill').style.width = '0'; }, 900);
+    return;
+  }
+  if (!P.on) { P.shown = 0; document.getElementById('pfill').style.width = '0'; }
+  P.on = true; P.seen = performance.now();
+  document.getElementById('plabel').textContent = m.label || 'Ci sto lavorando';
+  P.ind = m.fraction === null || m.fraction === undefined;
+  track.classList.toggle('ind', P.ind);
+  document.getElementById('ppct').textContent = '';
+  if (!P.ind) { P.from = +m.fraction; P.until = m.until == null ? P.from : +m.until; P.eta = Math.max(1, +m.eta || 10); P.t0 = performance.now(); }
+  body.classList.add('busy');
+}
+function tickProgress(now) {
+  if (!P.on && !document.body.classList.contains('busy')) { P.last = 0; return; }
+  if (P.on && now - P.seen > 300000) { progress({active: false}); return; }       // il backend non si fa piu' sentire: non lascia la barra appesa
+  if (P.ind && P.on) return;
+  const target = P.on ? P.from + (P.until - P.from) * (1 - Math.exp(-(now - P.t0) / 1000 / P.eta)) : 1;    // si avvicina piano al fondo della fase, senza mai arrivarci prima del tempo
+  const dt = Math.min(1, Math.max(0, (now - (P.last || now)) / 1000)); P.last = now;
+  P.shown += (Math.max(P.shown, target) - P.shown) * (1 - Math.exp(-dt / (P.on ? .4 : .12)));                  // morbida, uguale a qualsiasi frequenza di fotogrammi
+  document.getElementById('pfill').style.width = (P.shown * 100).toFixed(1) + '%';
+  if (P.on) document.getElementById('ppct').textContent = Math.round(P.shown * 100) + '%';
+}
+
+/* ---------- connessione ---------- */
+function connect() {
+  if (DEMO) return;
+  const ws = new WebSocket(Q.get('ws') || 'ws://127.0.0.1:8765');
+  ws.onmessage = e => { try { handle(JSON.parse(e.data)); } catch (_) {} };
+  ws.onclose = () => { progress({active: false}); setTimeout(connect, 1000); };
+  ws.onerror = () => ws.close();
+}
+connect();
+setState('idle');
+
+/* ---------- demo ---------- */
+const CYCLE = [['idle', 2.5], ['listening', 4.5], ['thinking', 2.4], ['speaking', 9]];
+const LINES = ['Domani a Roma sarà coperto,', 'tra i nove e i diciannove gradi.', 'Una giacca leggera ti basterà.'];
+function syl(t, r, o) { const s = Math.pow(Math.abs(Math.sin(t * r + o)), 1.5), w = .5 + .5 * Math.sin(t * 1.3 + o * 2); return Math.min(1, s * (w > .25 ? 1 : .12) * (.65 + .35 * Math.sin(t * .7 + o))); }
+let demoIdx = -1, demoT0 = 0, lineIdx = 0;
+function demo(t) {
+  const total = CYCLE.reduce((a, c) => a + c[1], 0), x = t % total;
+  let acc = 0, idx = 0; for (let i = 0; i < CYCLE.length; i++) { acc += CYCLE[i][1]; if (x < acc) { idx = i; break; } }
+  if (idx !== demoIdx) {
+    demoIdx = idx; demoT0 = t; lineIdx = 0; setState(CYCLE[idx][0]);
+    if (CYCLE[idx][0] === 'thinking') handle({type: 'transcript', role: 'user', text: 'Che tempo fa domani?'});
+  }
+  const s = state, lv = s === 'idle' ? 0 : s === 'listening' ? syl(t, 5.5, 0) : s === 'thinking' ? 0 : syl(t, 6.2, 1.7) * (((t - demoT0) % 3.2) > 2.7 ? 0 : 1);   // pause tra le frasi
+  brain.setLevel(lv);
+  if (s === 'speaking' && lineIdx < LINES.length && t - demoT0 > .4 + lineIdx * 3.2) handle({type: 'transcript', role: 'aria', text: LINES[lineIdx++]});
+}
+if (DEMO_PROGRESS) {                                                                       // anteprima: le fasi di un documento, una dopo l'altra
+  const ST = [['Capisco di cosa scrivere', .02, .08, 2], ['Cerco informazioni sul web', .08, .2, 3], ['Scrivo la bozza', .3, .66, 8], ['Rileggo e correggo', .66, .94, 8], ['Salvo il file nella cartella', .96, .99, 1]];
+  let i = 0; const next = () => { if (i < ST.length) { const [l, a, b, e] = ST[i++]; progress({active: true, label: l, fraction: a, until: b, eta: e}); setTimeout(next, 4000); } else { progress({active: false}); i = 0; setTimeout(next, 3000); } };
+  setTimeout(next, 600);
+}
+const t0 = performance.now();
+(function loop(now) { const t = (now - t0) / 1000; if (DEMO) demo(t); brain.draw(t); tickProgress(now); requestAnimationFrame(loop); })(t0);
+</script>
+</body>
+</html>

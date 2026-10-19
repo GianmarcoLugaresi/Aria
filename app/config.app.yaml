@@ -1,0 +1,63 @@
+# Aria per Mac · configurazione. Si trova in  ~/Library/Application Support/Aria/config.yaml
+# Dopo averla modificata: menu Aria ▸ Esci, poi riapri l'app.
+
+name: Aria
+location: {city: null, lat: null, lon: null}    # la città te la chiede Aria e la ricorda lei; scrivila qui solo per forzarla (con lat e lon)
+persona_file: persona.md                                  # il carattere di Aria: puoi modificarlo a piacere
+
+wake:
+  phrase: "hey aria"
+  mode: stt              # ascolta con il VAD e riconosce "hey aria" con Whisper (nessun addestramento)
+  stt: null              # null = usa lo stesso Whisper della conversazione (1 solo modello in RAM)
+
+audio:
+  input_device: null     # null = microfono predefinito del Mac
+  output_device: null
+  input_rate: 16000
+  output_rate: 24000
+  save_utterances: false # true = salva le ultime 40 frasi che dici come file audio in ~/.aria/utterances (solo sul tuo Mac): serve solo per capire gli errori di riconoscimento
+  barge_in: false        # true = puoi interromperla parlando, ma SOLO con le cuffie (senza eco-cancellazione si sentirebbe da sola)
+  barge_in_words: true   # con le casse del Mac: mentre parla riascolta il microfono e si ferma se senti «basta», «aspetta», «stop», «fermati», «un attimo» (o se parli d'altro); l'eco della sua voce viene ignorata
+  voice_processing: true # il microfono passa dal filtro eco del Mac (come FaceTime): la voce di Aria sparisce dal microfono e la puoi interrompere a voce mentre parla. false = microfono normale
+  volume: 0.9
+
+turn:
+  end_silence_ms: 800    # silenzio che chiude la tua frase
+  follow_up_timeout_s: 8 # dopo la risposta resta in ascolto: non serve richiamarla
+
+# Il "cervello": tutto locale e dentro l'app. Un chatbot piccolo (MLX), Whisper per capirti, Pocket TTS per la voce. Nessun Ollama, nessun abbonamento.
+brains:
+  - name: mac
+    llm:
+      kind: mlx-lm            # il chatbot gira DENTRO Aria (Apple MLX): non serve Ollama. Il modello si scarica da solo al primo avvio (2,6 GB)
+      model: "mlx-community/gemma-3-text-4b-it-4bit"
+      temperature: 0.65       # una voce amica, non un generatore di stranezze: sotto 0.7 il chatbot piccolo resta coerente (a 0.85 inventava parole)
+      top_p: 0.92
+      min_p: 0.05             # taglia le parole improbabili (quelle che fanno dire «che rottesa»)
+      repetition_penalty: 1.05
+      max_tokens: 240
+      # Per usare invece un server Ollama:  base_url: http://127.0.0.1:11434/v1  e  model: "gemma3:4b"  (togli kind). Meglio farlo da Impostazioni.
+    stt: {kind: mlx-whisper, model: "mlx-community/whisper-large-v3-turbo-q4", prompt: false}      # Whisper large-v3-turbo a 4 bit sulla GPU del Mac: 0,46 GB; con audio basso/rumoroso sbaglia ~metà di 'small' (7-11% vs 19-21%)
+    tts: {kind: pocket, language: italian, voice: lola}    # voce cambiabile dal menu; "say" = voce di sistema, nessun download
+
+tools:
+  web_search: {kind: ddgs, searxng_url: null, max_results: 4}
+
+memory: {enabled: true, max_facts_in_prompt: 6, history_turns: 6}
+
+# Quanto "umana": ognuna di queste cose si puo' spegnere (true = acceso)
+human:
+  greet: true          # «Hey Aria» da solo -> ti risponde con un saluto adatto all'ora (e chiede com'è andato l'esame di ieri, se lo sai)
+  dialog_acts: true    # «grazie», «ok», «ciao», «come?»: risposte brevi e varie, senza passare dal chatbot
+  hints: true          # note di regia per ogni risposta (come stai, quanto lunga, non ripetersi) + esempi del tono giusto
+  rhythm: true         # il «ritmo»: per pareri, spiegazioni, sfoghi, giornate piatte e autocritica una mossa precisa, un budget di parole, mai due domande di fila
+  clean_replies: true  # toglie «Certamente!», le esperienze inventate («ho letto che…»), le parole inglesi
+  pauses: true         # il silenzio dopo ogni frase segue la punteggiatura
+  ask_again: true      # se non ha capito bene dice «scusa, puoi ripetere?» invece di rispondere a caso
+  max_sentences: 3     # frasi al massimo in una chiacchiera (5 se chiedi di spiegare)
+  max_sentences_long: 20  # frasi al massimo quando glielo chiedi (spiegami, una ricetta, parlami di…, raccontami)
+  long_max_tokens: 900    # e quanto puo' essere lunga la risposta (circa 20 frasi)
+  name_every: 6        # il tuo nome lo dice al massimo una volta ogni tot risposte (una persona non lo ripete a ogni frase)
+display: {host: 127.0.0.1, port: 8765, fps: 30}
+leds: {kind: none}
+log_level: INFO

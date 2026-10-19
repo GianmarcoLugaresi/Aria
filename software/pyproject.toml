@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aria"
+version = "0.3.1"
+description = "Aria: assistente vocale da scrivania in italiano, 100% locale"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = ["httpx>=0.27", "pyyaml>=6", "websockets>=13", "numpy>=1.26", "tzdata; sys_platform == 'win32'"]
+
+[project.optional-dependencies]
+audio  = ["sounddevice>=0.4.7"]
+vad    = ["pysilero-vad", "onnxruntime"]
+stt    = ["faster-whisper>=1.0"]
+tts    = ["pocket-tts"]
+search = ["ddgs"]
+docs   = ["pypdf"]
+mlx    = ["mlx-lm", "mlx-whisper"]                       # solo Mac con chip Apple
+wake   = ["openwakeword"]
+piper  = ["piper-tts"]
+kokoro = ["kokoro-onnx"]
+pi     = ["pi5neo"]
+test   = ["pytest", "pytest-asyncio", "pypdf", "huggingface-hub"]
+# tutto quello che serve per usare Aria su un Mac con chip Apple (l'installer dell'app mette gli stessi pacchetti)
+mac = ["aria[audio,vad,stt,tts,search,docs,mlx,test]"]
+# tutto quello che serve sul Raspberry Pi
+raspberry = ["aria[audio,vad,stt,piper,search,pi]"]
+
+[tool.setuptools.packages.find]
+include = ["aria*"]
+
+[tool.setuptools.package-data]
+aria = ["voices/*.wav", "voices/*.txt"]

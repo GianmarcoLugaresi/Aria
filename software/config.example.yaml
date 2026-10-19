@@ -1,0 +1,51 @@
+# Aria · configurazione. Copia in config.yaml e cambia quello che serve: tutto cio' che manca prende il valore di default.
+
+name: Aria
+location: {city: Roma, lat: 41.9028, lon: 12.4964}     # CAMBIA: serve per meteo e orario ("che tempo fa?")
+persona_file: ../anima/persona_compatta.md                # carattere (per modelli piccoli); persona.md e' la versione estesa
+
+wake:
+  phrase: "hey aria"
+  mode: stt                              # stt = funziona subito (VAD + Whisper cercano la frase) | model = openWakeWord addestrato (meglio) | keyboard = Invio
+  model_path: null                       # con mode: model -> models/ciao_aria.onnx (vedi scripts/train_wakeword.md)
+  threshold: 0.6
+  verify_with_stt: true                  # riconferma con Whisper: taglia i falsi positivi
+
+audio:
+  input_device: ReSpeaker                # parte del nome (python -m aria.main --list-devices); null = predefinito
+  output_device: ReSpeaker
+  input_rate: 16000
+  output_rate: 16000                     # il XVF3800 suona a 16 kHz; sul Mac/altoparlante normale puoi usare 24000
+  barge_in: true                         # si puo' interrompere mentre parla (serve l'eco-cancellazione del XVF3800, o cuffie)
+  volume: 0.9
+
+turn:
+  end_silence_ms: 750                    # silenzio che chiude la tua frase (alza se ti interrompe mentre pensi)
+  follow_up_timeout_s: 8                 # dopo la risposta resta in ascolto: niente "Hey Aria" ogni volta
+
+# Cervelli in ordine di preferenza. PER OGNI STADIO (llm / stt / tts) vince il primo che risponde e che ha quello stadio:
+# qui il Mac di casa fa il testo (LLM) e il riconoscimento (STT) quando e' acceso; la voce (TTS) gira sempre sul Raspberry.
+brains:
+  - name: casa
+    llm:
+      base_url: http://mac.local:11434/v1         # Ollama sul Mac (OLLAMA_HOST=0.0.0.0)
+      model: "Gemma4-12B:latest"
+      max_tokens: 160
+      extra_body: {reasoning_effort: none}        # IMPORTANTE con Gemma 4 / Qwen 3.5 su Ollama: senza, "ragionano" per secondi
+    stt:
+      kind: openai
+      base_url: http://mac.local:8081/v1          # whisper.cpp server, vedi scripts/README_brain.md
+      model: whisper-large-v3-turbo
+  - name: raspberry                               # sempre disponibile: modelli piccoli, tutto in locale
+    llm:
+      base_url: http://127.0.0.1:8080/v1          # llama-server con Gemma 4 E2B o Qwen3.5 2B/4B (Q4)
+      model: local
+      max_tokens: 140
+      extra_body: {chat_template_kwargs: {enable_thinking: false}}
+    stt: {kind: faster-whisper, model: small, compute_type: int8}
+    tts: {kind: piper, model_path: models/it_IT-paola-medium.onnx}      # oppure: {kind: kokoro, model_dir: models, voice: if_sara}
+
+tools:
+  web_search: {kind: ddgs, searxng_url: null, max_results: 4}   # o searxng_url: http://localhost:8888 se ne ospiti uno
+display: {host: 127.0.0.1, port: 8765, fps: 30}
+leds: {kind: pi5neo, count: 38}                                 # "none" se non hai la strip LED

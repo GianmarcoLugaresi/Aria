@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aria · prototipo onda</title>
+<style>
+  :root{--bg:#07080c;--panel:#10121a;--line:#1f2331;--txt:#d9deee;--mut:#8089a6;--acc:#6ea8ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  header,main{max-width:980px;margin:0 auto;padding:0 16px}
+  header{padding-top:22px}
+  h1{font-size:20px;margin:0 0 4px;font-weight:600}
+  header p{margin:0 0 16px;color:var(--mut)}
+  .stage{display:flex;flex-wrap:wrap;gap:18px;justify-content:center;align-items:flex-start;margin:8px 0 18px}
+  figure{margin:0;text-align:center}
+  figcaption{color:var(--mut);font-size:12.5px;margin-top:8px;max-width:340px}
+  #disp{width:min(340px,86vw);height:min(340px,86vw);border-radius:50%;background:#000;border:1px solid var(--line);display:block}
+  #ball{width:min(340px,86vw);height:min(340px,86vw);border-radius:12px;border:1px solid var(--line);display:block}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+  .row>label.t{color:var(--mut);min-width:118px;font-size:13px}
+  button{background:#171a26;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+  button.on{background:var(--acc);color:#05070d;border-color:var(--acc);font-weight:600}
+  input[type=range]{accent-color:var(--acc);width:200px;max-width:60vw}
+  .val{color:var(--mut);font-variant-numeric:tabular-nums;min-width:48px}
+  ol{margin:6px 0 0 18px;padding:0;color:var(--mut)} ol b{color:var(--txt);font-weight:600}
+  /* modalità test telefono: solo l'onda, a tutto schermo */
+  body.full header,body.full main>*:not(.stage){display:none}
+  body.full .stage{position:fixed;inset:0;margin:0;background:#000;z-index:9;justify-content:center;align-items:center}
+  body.full figure:nth-child(2),body.full figcaption{display:none}
+  body.full #disp{width:min(100vw,100vh);height:min(100vw,100vh);border:0;border-radius:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Aria · prototipo dell'onda</h1>
+  <p>Lo stesso rendering girerà sul display rotondo nascosto nella base. A destra la simulazione ottica del <b>Test B</b> (sfera piena davanti allo schermo).</p>
+</header>
+<main>
+  <section class="stage">
+    <figure id="dispWrap"><canvas id="disp" width="512" height="512"></canvas>
+      <figcaption>Cosa disegna lo schermo</figcaption></figure>
+    <figure><canvas id="ball" width="320" height="320"></canvas>
+      <figcaption>Cosa vedi attraverso la sfera (simulazione)</figcaption></figure>
+  </section>
+
+  <section class="panel">
+    <div class="row"><label class="t">Stato</label>
+      <button data-s="auto" class="on">Auto</button><button data-s="idle">Riposo</button>
+      <button data-s="listening">Ascolto</button><button data-s="thinking">Penso</button><button data-s="speaking">Parlo</button></div>
+    <div class="row"><label class="t">Forma</label>
+      <button data-m="line" class="on">Linea</button><button data-m="ring">Anello</button>
+      <label style="margin-left:10px"><input type="checkbox" id="mic"> segui il mio microfono</label></div>
+    <div class="row"><label class="t">Grandezza onda</label><input type="range" id="scale" min="20" max="95" value="85"><span class="val" id="scaleV"></span></div>
+    <div class="row"><label class="t">Geometria</label>
+      <button data-g="vertical" class="on">Schermo in piedi, palla davanti</button><button data-g="horizontal">Schermo disteso, palla sopra</button></div>
+    <div class="row"><label class="t">Altezza occhio</label><input type="range" id="elev" min="0" max="85" value="0"><span class="val" id="elevV"></span></div>
+    <div class="row"><label class="t">Rotazione laterale</label><input type="range" id="yaw" min="-70" max="70" value="0"><span class="val" id="yawV"></span></div>
+    <div class="row"><label class="t">Sposta onda</label><input type="range" id="shift" min="-45" max="45" value="0"><span class="val" id="shiftV"></span>
+      <label style="margin-left:6px"><input type="checkbox" id="follow"> centra sull'osservatore</label></div>
+    <div class="row"><label class="t">Materiale sfera</label>
+      <button data-n="1.49" class="on">Acrilico 1.49</button><button data-n="1.52">Vetro K9 1.52</button><button data-n="1.33">Acqua 1.33</button></div>
+    <div class="row"><label class="t">Test col telefono</label><button id="full">Schermo intero nero</button>
+      <span style="color:var(--mut);font-size:13px">tocca per uscire</span></div>
+  </section>
+
+  <section class="panel">
+    <b>Prima di comprare qualsiasi cosa: due test a costo zero col telefono</b>
+    <p style="color:var(--mut);margin:6px 0 4px">Apri la pagina sul telefono (<code>python3 -m http.server 8000</code> nella cartella <code>prototipo/</code>, poi <code>http://IP-del-mac:8000/orb.html</code>), premi <b>Schermo intero nero</b>, luminosità al massimo, stanza non troppo luminosa.</p>
+    <p style="margin:10px 0 2px"><b>Test A · "fantasma" (Pepper's ghost)</b> <span style="color:var(--acc)">← è quello che voglio costruire</span></p>
+    <ol>
+      <li>Telefono <b>appoggiato piatto</b>, schermo in su.</li>
+      <li>Tieni una <b>lastra trasparente</b> (custodia di un CD, vetro di un portafoto, fogli di acetato) <b>inclinata a 45°</b>: bordo basso sul telefono, bordo alto verso di te.</li>
+      <li>Guarda la lastra dal davanti: la linea <b>galleggia dietro il vetro</b>, nell'aria. Se il test funziona con una custodia CD (riflette solo ~8%), con uno specchio semiriflettente 30% sarà molto più luminoso.</li>
+    </ol>
+    <p style="margin:10px 0 2px"><b>Test B · sfera di cristallo</b> (solo per curiosità: ha un punto di vista molto stretto)</p>
+    <ol>
+      <li>Telefono in piedi (appoggiato a qualcosa), <b>sfera piena</b> di vetro o acrilico a contatto con lo schermo.</li>
+      <li>Regola <b>Grandezza onda</b>/<b>Sposta onda</b> finché la linea attraversa la sfera. Muovi la testa: vedrai quanto è fragile.</li>
+    </ol>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const disp = $('#disp'), dctx = disp.getContext('2d');
+const ball = $('#ball'), bctx = ball.getContext('2d');
+const S = disp.width;
+
+/* ---------- palette e stati ---------- */
+const PAL = {
+  idle:      {c:[[80,200,255],[100,140,255],[150,110,255]], amp:1, spd:0.5},
+  listening: {c:[[40,230,255],[70,130,255],[60,255,200]],   amp:1, spd:1.6},
+  thinking:  {c:[[175,100,255],[255,90,200],[90,120,255]],  amp:1, spd:2.4},
+  speaking:  {c:[[255,70,160],[255,160,60],[170,90,255]],   amp:1, spd:2.0},
+};
+const CYCLE = [['idle',3],['listening',5],['thinking',2.5],['speaking',6]];
+let state = 'idle', auto = true, mode = 'line', ior = 1.49;
+let cur = PAL.idle.c.map(c => c.slice());
+let level = 0, micOn = false, analyser = null, micBuf = null;
+
+/* pseudo-parlato: raffiche sillabiche con pause tra le "parole" */
+function syl(t, rate, off){
+  const s = Math.pow(Math.abs(Math.sin(t*rate + off)), 1.5);
+  const word = 0.5 + 0.5*Math.sin(t*1.3 + off*2);
+  return Math.min(1, s * (word > 0.25 ? 1 : 0.12) * (0.65 + 0.35*Math.sin(t*0.7 + off)));
+}
+function targetLevel(t){
+  if (micOn && analyser && (state === 'listening' || state === 'speaking')) {
+    analyser.getFloatTimeDomainData(micBuf);
+    let s = 0; for (const v of micBuf) s += v*v;
+    return Math.min(1, Math.sqrt(s/micBuf.length) * 9);
+  }
+  switch (state) {
+    case 'idle':      return 0.05 + 0.025*Math.sin(t*1.2);
+    case 'listening': return syl(t, 5.5, 0);
+    case 'thinking':  return 0.30 + 0.12*Math.sin(t*3);
+    default:          return syl(t, 6.5, 1.7);
+  }
+}
+
+/* ---------- onda stile Siri ---------- */
+const LINES = [
+  {f:1.0, p:0.0, a:1.00, w:3.4, c:0},
+  {f:1.6, p:1.7, a:0.70, w:2.8, c:1},
+  {f:2.3, p:3.1, a:0.50, w:2.4, c:2},
+  {f:0.8, p:4.4, a:0.35, w:1.5, c:0},
+];
+function drawDisplay(t){
+  const w = S, k = S/512;
+  let cx = w/2, cy = w/2;
+  if ($('#follow').checked) { const los = lineOfSight(); cx = w/2 + los.x/RD*w/2; cy = w/2 - los.v/RD*w/2; }
+  cy += (+$('#shift').value)/RD*w/2;
+  const P = PAL[state];
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) cur[i][j] += (P.c[i][j] - cur[i][j]) * 0.06;
+  const rgb = i => `rgb(${cur[i].map(Math.round).join(',')})`;
+  const L = w * (+$('#scale').value/100);
+
+  dctx.globalCompositeOperation = 'source-over';
+  dctx.globalAlpha = 1; dctx.shadowBlur = 0;
+  dctx.fillStyle = '#000'; dctx.fillRect(0, 0, w, w);
+
+  const g = dctx.createRadialGradient(cx, cy, 0, cx, cy, L*0.62);
+  g.addColorStop(0, `rgba(${cur[0].map(Math.round).join(',')},${0.04 + 0.22*level})`);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  dctx.fillStyle = g; dctx.fillRect(0, 0, w, w);
+
+  dctx.globalCompositeOperation = 'lighter';
+  dctx.lineCap = 'round'; dctx.lineJoin = 'round';
+  const breathe = state === 'idle' ? 0.55 + 0.25*Math.sin(t*1.2) : 1;
+  const N = 200;
+  for (const ln of LINES) {
+    dctx.globalAlpha = breathe;
+    dctx.strokeStyle = rgb(ln.c); dctx.shadowColor = rgb(ln.c);
+    dctx.lineWidth = ln.w * k * 1.7; dctx.shadowBlur = 20 * k;
+    dctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      let x, y;
+      if (mode === 'line') {
+        const env = Math.pow(Math.sin(Math.PI*u), 2.2);              // estremi piatti
+        const amp = L * 0.34 * level * ln.a * env;
+        x = cx - L/2 + u*L;
+        y = cy + Math.sin(u*Math.PI*2*ln.f*2 + ln.p + t*P.spd*(1 + ln.c*0.35)) * amp;
+      } else {
+        const R0 = L/2 * 0.78, kk = Math.round(3 + 2*ln.f);           // lobi interi: anello chiuso
+        const th = u * Math.PI * 2;
+        const r = R0 + Math.sin(kk*th + ln.p + t*P.spd*(1 + ln.c*0.35)) * R0 * 0.34 * level * ln.a;
+        x = cx + Math.cos(th)*r; y = cy + Math.sin(th)*r;
+      }
+      i ? dctx.lineTo(x, y) : dctx.moveTo(x, y);
+    }
+    dctx.stroke();
+  }
+  if (state === 'thinking') {                                          // puntino che corre mentre "pensa"
+    const u = (t*0.45) % 1, ang = u*Math.PI*2;
+    const x = mode === 'line' ? cx - L/2 + u*L : cx + Math.cos(ang)*L*0.39;
+    const y = mode === 'line' ? cy : cy + Math.sin(ang)*L*0.39;
+    dctx.globalAlpha = 1; dctx.fillStyle = '#fff'; dctx.shadowColor = rgb(1); dctx.shadowBlur = 26*k;
+    dctx.beginPath(); dctx.arc(x, y, 5*k, 0, 7); dctx.fill();
+  }
+  dctx.globalAlpha = 1; dctx.shadowBlur = 0; dctx.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- simulazione ottica: sfera piena a contatto con lo schermo ---------- */
+const BW = ball.width, out = bctx.createImageData(BW, BW);
+const tex = document.createElement('canvas'); tex.width = tex.height = S;
+const tctx = tex.getContext('2d', {willReadFrequently: true});
+const R = 50, RD = 43;                  // mm: raggio sfera, raggio display (Ø86 = Waveshare 3.4")
+const VIEW = 150;                       // mm di scena visibili
+let geom = 'vertical';                  // 'vertical' = schermo in piedi, palla davanti · 'horizontal' = palla sopra lo schermo
+
+const dot = (a,b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+function refract(ix,iy,iz, nx,ny,nz, eta){
+  const ci = -(ix*nx + iy*ny + iz*nz), k = 1 - eta*eta*(1 - ci*ci);
+  if (k < 0) return null;
+  const a = eta*ci - Math.sqrt(k);
+  return [eta*ix + a*nx, eta*iy + a*ny, eta*iz + a*nz];
+}
+function env(ry){                       // ambiente: soffitto con softbox, tavolo scuro
+  if (ry <= 0) return [14,14,18];
+  const b = 30 + 90*ry*ry;
+  return [b*0.8, b*0.9, b];
+}
+/* scena: piano dello schermo con normale N, asse "su" V, asse "destra" X; palla in c = N*R */
+function sceneAxes(){
+  return geom === 'vertical'
+    ? {N:[0,0,1], V:[0,1,0], X:[1,0,0]}
+    : {N:[0,1,0], V:[0,0,-1], X:[1,0,0]};
+}
+function camera(){
+  const eps = (+$('#elev').value)*Math.PI/180, psi = (+$('#yaw').value)*Math.PI/180;
+  const d = [-Math.sin(psi)*Math.cos(eps), -Math.sin(eps), -Math.cos(psi)*Math.cos(eps)];  // direzione di sguardo
+  let up = [-d[0]*d[1], 1 - d[1]*d[1], -d[2]*d[1]], l = Math.hypot(...up); up = up.map(x => x/l);
+  const right = [d[1]*up[2]-d[2]*up[1], d[2]*up[0]-d[0]*up[2], d[0]*up[1]-d[1]*up[0]];
+  return {d, up, right};
+}
+/* dove cade sullo schermo il raggio che passa dal centro della palla (utile per centrare l'onda) */
+function lineOfSight(){
+  const {N,V,X} = sceneAxes(), {d} = camera(), c = N.map(x => x*R);
+  const s = -dot(c,N)/dot(d,N), p = [c[0]+s*d[0], c[1]+s*d[1], c[2]+s*d[2]];
+  return {x: dot(p,X), v: dot(p,V)};
+}
+function renderBall(){
+  tctx.drawImage(disp, 0, 0);
+  const T = tctx.getImageData(0, 0, S, S).data, D = out.data;
+  const {N,V,X} = sceneAxes(), {d,up,right} = camera(), n = ior;
+  const c = N.map(x => x*R);
+  const dN = dot(d,N);
+
+  const sample = (px_,py_,pz_) => {
+    const Xc = px_*X[0]+py_*X[1]+pz_*X[2], Vc = px_*V[0]+py_*V[1]+pz_*V[2];
+    if (Xc*Xc + Vc*Vc > RD*RD) return [14,15,20];
+    const col = Math.min(S-1, Math.max(0, ((Xc/RD)*0.5 + 0.5) * S | 0));
+    const row = Math.min(S-1, Math.max(0, ((-Vc/RD)*0.5 + 0.5) * S | 0));
+    const i = (row*S + col) * 4;
+    return [T[i], T[i+1], T[i+2]];
+  };
+  const hitPlane = (ox,oy,oz, rx,ry,rz) => {
+    const den = rx*N[0]+ry*N[1]+rz*N[2];
+    if (den >= -1e-6) return null;
+    const tp = -(ox*N[0]+oy*N[1]+oz*N[2]) / den;
+    return sample(ox+tp*rx, oy+tp*ry, oz+tp*rz);
+  };
+  for (let py = 0; py < BW; py++) for (let px = 0; px < BW; px++) {
+    const u = (px/BW - 0.5) * VIEW, v = (0.5 - py/BW) * VIEW;
+    const ox = c[0] + u*right[0] + v*up[0] - d[0]*300,
+          oy = c[1] + u*right[1] + v*up[1] - d[1]*300,
+          oz = c[2] + u*right[2] + v*up[2] - d[2]*300;
+    const bx = ox-c[0], by = oy-c[1], bz = oz-c[2];
+    const b = bx*d[0] + by*d[1] + bz*d[2], disc = b*b - (bx*bx+by*by+bz*bz - R*R);
+    let col;
+    if (disc < 0) {                                  // manca la sfera: vede direttamente lo schermo
+      col = hitPlane(ox,oy,oz, d[0],d[1],d[2]) || [14,14,18];
+    } else {
+      const t = -b - Math.sqrt(disc);
+      const p1x = ox + t*d[0], p1y = oy + t*d[1], p1z = oz + t*d[2];
+      const nx = (p1x-c[0])/R, ny = (p1y-c[1])/R, nz = (p1z-c[2])/R;
+      let through = [8,8,12];
+      const tr = refract(d[0],d[1],d[2], nx,ny,nz, 1/n);
+      if (tr) {
+        let [tx,ty,tz] = tr, qx = p1x, qy = p1y, qz = p1z;
+        for (let k = 0; k < 4; k++) {                // dentro la sfera: esce oppure rimbalza
+          const s = -2*(tx*(qx-c[0]) + ty*(qy-c[1]) + tz*(qz-c[2]));
+          qx += s*tx; qy += s*ty; qz += s*tz;
+          const ex = (qx-c[0])/R, ey = (qy-c[1])/R, ez = (qz-c[2])/R;
+          const r = refract(tx,ty,tz, -ex,-ey,-ez, n);
+          if (r) { through = hitPlane(qx,qy,qz, r[0],r[1],r[2]) || env(r[1]); break; }
+          const dd = tx*ex + ty*ey + tz*ez;
+          tx -= 2*dd*ex; ty -= 2*dd*ey; tz -= 2*dd*ez;
+        }
+      }
+      const dn = d[0]*nx + d[1]*ny + d[2]*nz, F = 0.04 + 0.96*Math.pow(1 + dn, 5);   // Fresnel (Schlick)
+      const rf = env(d[1] - 2*dn*ny);
+      col = [through[0]*(1-F) + rf[0]*F, through[1]*(1-F) + rf[1]*F, through[2]*(1-F) + rf[2]*F];
+    }
+    const o = (py*BW + px)*4;
+    D[o] = col[0]; D[o+1] = col[1]; D[o+2] = col[2]; D[o+3] = 255;
+  }
+  bctx.putImageData(out, 0, 0);
+}
+
+/* ---------- loop ---------- */
+const t0 = performance.now();
+let lastSwitch = 0, idx = 0;
+function frame(now){
+  const t = (now - t0)/1000;
+  if (auto) {
+    if (t - lastSwitch > CYCLE[idx][1]) { idx = (idx + 1) % CYCLE.length; lastSwitch = t; }
+    state = CYCLE[idx][0];
+  }
+  const tl = targetLevel(t);
+  level += (tl - level) * (tl > level ? 0.35 : 0.08);
+  drawDisplay(t);
+  if (!document.body.classList.contains('full')) renderBall();
+  document.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', auto ? b.dataset.s === 'auto' : b.dataset.s === state));
+  requestAnimationFrame(frame);
+}
+
+/* ---------- controlli ---------- */
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
+  if (b.dataset.s === 'auto') { auto = true; lastSwitch = (performance.now()-t0)/1000; }
+  else { auto = false; state = b.dataset.s; }
+});
+document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => {
+  mode = b.dataset.m; document.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('on', x === b));
+});
+document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => {
+  geom = b.dataset.g; document.querySelectorAll('[data-g]').forEach(x => x.classList.toggle('on', x === b));
+  const el = $('#elev'); el.value = geom === 'vertical' ? 0 : 60; el.oninput();
+});
+document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => {
+  ior = +b.dataset.n; document.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('on', x === b));
+});
+for (const id of ['scale','elev','yaw','shift']) {
+  const el = $('#'+id), lab = $('#'+id+'V');
+  const up = () => lab.textContent = el.value + (id === 'scale' ? '%' : id === 'shift' ? ' mm' : '°');
+  el.oninput = up; up();
+}
+$('#mic').onchange = async e => {
+  if (!e.target.checked) { micOn = false; return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = ac.createAnalyser(); analyser.fftSize = 1024;
+    ac.createMediaStreamSource(stream).connect(analyser);
+    micBuf = new Float32Array(analyser.fftSize); micOn = true;
+    auto = false; state = 'listening';
+  } catch (err) { alert('Microfono non disponibile: ' + err.message); e.target.checked = false; }
+};
+$('#full').onclick = async () => {
+  document.body.classList.add('full');
+  try { await navigator.wakeLock.request('screen'); } catch (_) {}
+};
+document.addEventListener('click', e => {
+  if (document.body.classList.contains('full') && e.target.id !== 'full') document.body.classList.remove('full');
+});
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
