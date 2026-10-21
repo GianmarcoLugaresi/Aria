@@ -33,7 +33,7 @@ Su **Windows** esiste una versione sperimentale (vedi sotto). Linux e Intel Mac 
 
 ### Scaricando l'app (il modo più semplice)
 
-1. Dalla pagina delle [Release](https://github.com/GianmarcoLugaresi/Aria/releases) scarica `Aria-0.4.0-macos-arm64.zip` (circa 0,5 GB) e decomprimilo: dentro c'è `Aria.app`, con Python e tutte le librerie già dentro.
+1. Dalla pagina delle [Release](https://github.com/GianmarcoLugaresi/Aria/releases) scarica `Aria-1.0.1-macos-arm64.zip` (circa 0,5 GB) e decomprimilo: dentro c'è `Aria.app`, con Python e tutte le librerie già dentro.
 2. Trascina `Aria.app` nella cartella **Applicazioni**.
 3. L'app non è firmata con un certificato Apple a pagamento (non è «notarizzata»), quindi la prima volta macOS non la apre. Dal Terminale, una volta sola:
 
