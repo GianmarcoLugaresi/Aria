@@ -97,12 +97,6 @@ The chatbot is `mlx-community/gemma-3-text-4b-it-4bit`, recognition is `whisper-
 
 Issues and pull requests are welcome, in English or Italian. Start from the issues labelled [good first issue](https://github.com/GianmarcoLugaresi/Aria/labels/good%20first%20issue).
 
-```bash
-cd software
-python -m pip install -e ".[test]"
-python -m pytest -q
-```
-
 Ground rules:
 
 - The model must never be able to trigger an action. A new power needs a recogniser in `intent.py`, a switch in Settings and a test where the model tries to call it by itself.
