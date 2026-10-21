@@ -30,7 +30,7 @@ Requires an Apple silicon Mac with macOS 26 or later (16 GB RAM recommended) and
 
 **Download the app** (no toolchain needed):
 
-1. Download `Aria-0.4.0-macos-arm64.zip` from [Releases](https://github.com/GianmarcoLugaresi/Aria/releases), unzip it and move `Aria.app` to `/Applications`.
+1. Download `Aria-1.0.1-macos-arm64.zip` from [Releases](https://github.com/GianmarcoLugaresi/Aria/releases), unzip it and move `Aria.app` to `/Applications`.
 2. The app is not notarized, so macOS blocks it the first time. Once:
 
    ```bash
