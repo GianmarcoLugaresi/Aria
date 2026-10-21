@@ -13,7 +13,7 @@ Aria è pensata per non mandare in giro quello che dici. Questa pagina elenca, s
 
 | Quando | Verso dove | Cosa |
 |---|---|---|
-| prima installazione e cambio modelli | Hugging Face | il nome del modello (e l'indirizzo IP, come ogni download) |
+| prima installazione, cambio modelli e cambio lingua (la voce inglese) | Hugging Face | il nome del modello (e l'indirizzo IP, come ogni download) |
 | «che tempo fa?» | Open-Meteo | il nome della città (o le coordinate) |
 | «cerca…», fatti che cambiano, ricerche e documenti sui fatti | DuckDuckGo e altri motori (via `ddgs`), Wikipedia, le pagine trovate | il testo della domanda; per i documenti, le pagine pubbliche lette |
 | briefing del mattino | il feed delle notizie (ANSA di fabbrica) | una richiesta di quel feed |

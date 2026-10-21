@@ -1,4 +1,4 @@
-"""Sintesi vocale. Tre modi: Piper (CPU, leggerissimo), Kokoro (82M, piu' naturale), server compatibile OpenAI (es. Qwen3-TTS sul Mac)."""
+"""Sintesi vocale (italiano o inglese, vedi i18n.py). Tre modi: Piper (CPU, leggerissimo), Kokoro (82M, piu' naturale), server compatibile OpenAI (es. Qwen3-TTS sul Mac)."""
 from __future__ import annotations
 
 import asyncio
@@ -10,6 +10,8 @@ import shutil
 
 import httpx
 import numpy as np
+
+from . import i18n
 
 log = logging.getLogger("aria.tts")
 
@@ -56,7 +58,7 @@ class KokoroTTS:
 
     def _run(self, text: str):
         k = self._load()
-        samples, sr = k.create(text, voice=self.cfg.get("voice", "if_sara"), speed=float(self.cfg.get("speed", 1.0)), lang="it")
+        samples, sr = k.create(text, voice=self.cfg.get("voice", i18n.pick("if_sara", "af_sarah")), speed=float(self.cfg.get("speed", 1.0)), lang=i18n.pick("it", "en-us"))
         return _i16(np.asarray(samples)), int(sr)
 
     async def synthesize(self, text: str) -> tuple[np.ndarray, int]:
@@ -135,8 +137,8 @@ class PocketTTS:
 
     def __init__(self, cfg: dict):
         self.cfg = cfg
-        self.language = cfg.get("language", "italian")          # "italian_24l" = piu' qualita', 3x piu' pesante
-        self.voice = cfg.get("voice", "lola")
+        self.language = cfg.get("language") or i18n.POCKET_LANG[i18n.language()]          # "italian_24l" = piu' qualita', 3x piu' pesante; "english" per l'inglese
+        self.voice = cfg.get("voice") or i18n.pick(i18n.IT_DEFAULT_VOICE, i18n.EN_DEFAULT_VOICE)
         self.frames_after_eos = cfg.get("frames_after_eos", 14)  # quanti pezzetti (80 ms) generare dopo il «ho finito» del modello (di fabbrica 1-5): con pochi l'ultima parola si taglia.
         #                                                          Misurato su 24 frasi difficili x voce: con la voce «anna» da 3/24 frasi complete a ~16/24, le altre voci restano a 20-21/24
         self.eos_threshold = cfg.get("eos_threshold")            # piu' alto = il modello finisce piu' tardi
@@ -171,7 +173,7 @@ class PocketTTS:
         return _i16(audio.detach().cpu().numpy().astype(np.float32).squeeze()), int(m.sample_rate)
 
     async def warmup(self) -> None:
-        await asyncio.get_running_loop().run_in_executor(self.pool, self._run, "Ciao.")
+        await asyncio.get_running_loop().run_in_executor(self.pool, self._run, i18n.pick("Ciao.", "Hello."))
 
     async def synthesize(self, text: str) -> tuple[np.ndarray, int]:
         return await asyncio.get_running_loop().run_in_executor(self.pool, self._run, text)
@@ -181,7 +183,7 @@ class MacSayTTS:
     """Il comando `say` di macOS: zero installazione, voci italiane di sistema (Alice, ...). Piu' robotica di Pocket TTS."""
 
     def __init__(self, cfg: dict):
-        self.voice = cfg.get("voice", "Alice")
+        self.voice = cfg.get("voice") or i18n.SAY_VOICE[i18n.language()]
         self.rate = int(cfg.get("rate", 175))
 
     def set_voice(self, name: str) -> None:
@@ -235,6 +237,8 @@ class QwenTTS:
     # ---- disponibilita'
     def enabled(self) -> bool:
         import time
+        if i18n.is_en():
+            return False                                                   # la voce naturale ha le registrazioni di riferimento in italiano: in inglese parla Pocket TTS (voce inglese)
         ts, val = self._on_cache
         if time.monotonic() - ts < 2.0:
             return val
@@ -359,10 +363,11 @@ class QwenTTS:
         if self.enabled() and self.downloaded():
             await self._start()
 
-    async def synthesize(self, text: str, lang: str = "it") -> tuple[np.ndarray, int]:
+    async def synthesize(self, text: str, lang: str | None = None) -> tuple[np.ndarray, int]:
         import json
         import time
         import wave
+        lang = lang or i18n.language()
         if not self.usable():
             raise RuntimeError("voce naturale non pronta")
         async with self.lock:

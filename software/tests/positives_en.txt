@@ -1,0 +1,143 @@
+METEO|will it be sunny this weekend in Milan
+METEO|what's the weather like right now
+METEO|is it cold outside
+METEO|do I need a jacket today
+METEO|weather forecast for Paris tomorrow
+METEO|how hot will it get in Madrid on Friday
+METEO|what's it like outside
+TIMER|set a timer for 45 seconds
+TIMER|start a timer for an hour and a half
+TIMER|can you set an alarm for six thirty
+TIMER|wake me up at seven tomorrow
+TIMER|remind me in 20 minutes to check the oven
+TIMER|timer 15 minutes
+TIMER_STATO|how much longer on the timer
+TIMER_STATO|when does my alarm go off
+TIMER_ANNULLA|turn off the alarm
+TIMER_ANNULLA|cancel my timer please
+ORA|what time is it right now
+ORA|do you know what time it is
+ORA|tell me the time in London
+ORA|what's the time in New York
+ORA|what is today's date
+ORA|what day is it today
+CALCOLA|what's seven times eight
+CALCOLA|calculate 15% of 240
+CALCOLA|how much is 1000 divided by 8
+CALCOLA|what is the square root of 144
+CALCOLA|what's 45 plus 78
+CALCOLA|what's one hundred minus thirty five
+CALCOLA|what's twenty percent of eighty
+CONVERTI|how many kilometers is 26 miles
+CONVERTI|convert 5 pounds to kilograms
+CONVERTI|what's 72 degrees fahrenheit in celsius
+DATA|how many days until my birthday on March 3rd
+DATA|how many days until Christmas
+DATA|what day of the week is July 4th
+DATA|when is Easter this year
+CASO|roll two dice
+CASO|flip a coin for me
+CASO|pick a random number between one and a hundred
+AIUTO|what can you help me with
+AIUTO|what are your features
+AIUTO|how do I use you
+PROMEMORIA|remind me to take my pills at nine tonight
+PROMEMORIA|set a reminder to pay the rent on the first
+PROMEMORIA|remind me to buy flowers on Saturday
+PROMEMORIA_LISTA|what are my reminders
+PROMEMORIA_LISTA|do I have any reminders
+EVENTO|put lunch with Sarah on my calendar next Tuesday at noon
+EVENTO|schedule a dentist appointment for Monday at 3 pm
+EVENTO|create an event called birthday party on Saturday at seven
+EVENTO|add a meeting with Tom to my calendar tomorrow at ten
+AGENDA|what's on my agenda tomorrow
+AGENDA|what do I have today
+AGENDA|am I free on Friday afternoon
+AGENDA|what's on my calendar this week
+VOLUME|turn the volume down a little
+VOLUME|set the volume to forty percent
+VOLUME|make it louder
+VOLUME|mute the sound
+VOLUME|volume up
+MUSICA|play some relaxing music
+MUSICA|play Hotel California
+MUSICA|put on some Beatles
+MUSICA|next track
+MUSICA|pause the song
+MUSICA|what song is playing
+MUSICA|play something upbeat
+APRI_APP|open Spotify
+APRI_APP|launch the Notes app
+APRI_APP|open Safari please
+WEB|search YouTube for cooking tutorials
+WEB|look up pizza dough recipes on Google
+MAPPA|show me Berlin on the map
+MAPPA|directions to the nearest train station
+MAPPA|where's the closest gas station
+SISTEMA|what's my battery level
+SISTEMA|how much storage do I have left
+SISTEMA|what's my IP address
+SISTEMA|am I connected to wifi
+WIKI|who was Albert Einstein
+WIKI|what is quantum computing
+WIKI|tell me about the Roman Empire
+WIKI|who invented the light bulb
+CERCA|what's the latest news about the economy
+CERCA|who won the Champions League
+CERCA|how much does a Tesla cost
+CERCA|search the web for best laptops
+RICORDA|remember that my sister's birthday is in June
+RICORDA|keep in mind that I'm vegetarian
+RICORDA|please remember my wifi password is on the fridge
+MEMORIA|what do you know about me
+LISTA|add bread to the shopping list
+LISTA|put eggs and butter on my shopping list
+LISTA|add pasta to my grocery list
+NOTA|make a note that the car needs an oil change
+NOTA|jot down: call the plumber
+NOTA|take a note buy a gift for Anna
+LEGGI|read me the shopping list
+LEGGI|read my notes
+ELENCO|what files do you have
+SCRIVI|write me a poem about autumn
+SCRIVI|write a short story about a lost robot
+SCRIVI|draft an email to my landlord about the heating
+RICERCA|do some research on solar panels
+RIASSUMI|summarize the lease agreement
+DOCUMENTO|what does the lease agreement say about pets
+TRADUCI|how do you say good evening in Spanish
+TRADUCI|translate where is the station into German
+BRIEFING|give me my morning briefing
+SCHERMO|where is the Print button
+SCHERMO|I can't find the settings icon
+SCHERMO|what's on my screen
+NON_SO|call my sister
+NON_SO|text Anna that I'm running late
+NON_SO|turn on the living room lights
+NON_SO|order me a pizza
+NON_SO|take a picture
+NON_SO|print this document
+MUSICA|put the music on pause
+MUSICA|put it on pause
+MUSICA|put the song on pause
+MUSICA|put the track on hold
+MUSICA|put some jazz on
+CALCOLA|what's a 15 percent tip on 80 dollars
+CALCOLA|what's the tip on 60 dollars at 20 percent
+CALCOLA|how much is a twenty percent tip on forty dollars
+LEGGI|what's on my shopping list
+LEGGI|what's on my to-do list
+LEGGI|what do I have on my shopping list
+LEGGI|what's in my notes
+METEO|so what's the weather gonna be like tomorrow
+METEO|so is it going to rain
+METEO|so like how's it looking outside
+ORA|could you tell me what day it is today
+MUSICA|yo play some music
+AGENDA|anything on my schedule this afternoon
+TIMER|lemme know when ten minutes are up
+TIMER|let me know in twenty minutes
+TIMER|tell me when an hour has passed
+CALCOLA|a hundred and fifty divided by six
+CALCOLA|what's the square of nine
+MAPPA|how do I get to Central Park

@@ -19,6 +19,7 @@ from typing import Awaitable, Callable
 
 import httpx
 
+from . import i18n, speech_en, timeparse_en
 from .filetools import FILE_TOOLS, FileTools
 from .macos import MacError
 from .powers import ASK, POWER_TOOLS, PowerTools
@@ -69,6 +70,8 @@ def it_number(word: str) -> int | None:
 
 def parse_duration(text: str) -> int | None:
     """'dieci minuti' -> 600, 'un'ora e mezza' -> 5400, 'mezz'ora' -> 1800, '2 ore e 30 minuti' -> 9000."""
+    if i18n.is_en():
+        return timeparse_en.parse_duration(text)
     raw = text.lower().replace("’", "'")
     raw = re.sub(r"(\d+)[,.](\d+)\s*(?:ore|ora|h|hr|hrs)\b", lambda m: f"{round(float(m.group(1) + '.' + m.group(2)) * 60)} minuti", raw)           # «1,5 ore» -> 90 minuti
     raw = re.sub(r"(\d+)\s*(?:h|hr|hrs)\s*(\d+)\b(?!\s*(?:ore|ora|h))", r"\1 ore \2 minuti", raw)                                                   # «1h30»
@@ -114,6 +117,8 @@ def parse_duration(text: str) -> int | None:
 
 
 def fmt_duration(sec: int) -> str:
+    if i18n.is_en():
+        return speech_en.fmt_duration(sec)
     h, rest = divmod(int(sec), 3600)
     m, s = divmod(rest, 60)
     parts = []
@@ -154,6 +159,8 @@ def safe_eval(expr: str) -> float:
 
 
 def speak_number(x: float) -> str:
+    if i18n.is_en():
+        return speech_en.speak_number(x)
     if float(x).is_integer():
         return str(int(x))
     return f"{x:.4f}".rstrip("0").rstrip(".").replace(".", " virgola ")
@@ -162,6 +169,8 @@ def speak_number(x: float) -> str:
 # ------------------------------------------------------------------------------- ora
 def now_it(now: dt.datetime | None = None) -> str:
     n = now or dt.datetime.now()
+    if i18n.is_en():
+        return speech_en.now_en(n)
     return f"{GIORNI[n.weekday()]} {n.day} {MESI[n.month - 1]} {n.year}, ore {n.hour}:{n.minute:02d}"
 
 
@@ -172,6 +181,8 @@ _T = {2: "venti", 3: "trenta", 4: "quaranta", 5: "cinquanta"}
 
 def words_it(n: int) -> str:
     """0-59 e 2000-2099 in parole ("ventitré", "duemilaventisei"): il TTS legge le cifre in modo imprevedibile."""
+    if i18n.is_en():
+        return speech_en.words(n)
     if n >= 2000:
         return "duemila" + (words_it(n - 2000) if n > 2000 else "")
     if n < 20:
@@ -185,11 +196,15 @@ def words_it(n: int) -> str:
 
 def speak_clock(t: dt.datetime) -> str:
     """18:42 -> «diciotto e quarantadue»"""
+    if i18n.is_en():
+        return speech_en.speak_clock(t)
     return f"{words_it(t.hour)} e {words_it(t.minute)}" if t.minute else f"{words_it(t.hour)}"
 
 
 def speak_time(now: dt.datetime | None = None) -> str:
     n = now or dt.datetime.now()
+    if i18n.is_en():
+        return speech_en.speak_time(n)
     h, m = n.hour, n.minute
     if m == 45:                                             # "l'una meno un quarto"
         h, tail = (h + 1) % 24, " meno un quarto"
@@ -205,12 +220,16 @@ def speak_time(now: dt.datetime | None = None) -> str:
 
 def speak_date(now: dt.datetime | None = None) -> str:
     n = now or dt.datetime.now()
+    if i18n.is_en():
+        return speech_en.speak_date(n)
     day = "primo" if n.day == 1 else words_it(n.day)
     return f"Oggi è {GIORNI[n.weekday()]} {day} {MESI[n.month - 1]} {words_it(n.year)}."
 
 
 def day_part(now: dt.datetime | None = None) -> str:
     h = (now or dt.datetime.now()).hour
+    if i18n.is_en():
+        return speech_en.day_part(now)
     return "mattina" if 5 <= h < 12 else "pomeriggio" if 12 <= h < 18 else "sera" if 18 <= h < 23 else "notte"
 
 
@@ -221,6 +240,11 @@ SPEAK_VERBATIM = {"METEO", "TIMER", "TIMER_STATO", "TIMER_ANNULLA", "CALCOLA", "
 # riconosciuta a monte: un testo trovato sul web non puo' far fare niente ad Aria.
 MODEL_TOOLS = {"CERCA", "WIKI", "METEO", "TIMER", "CALCOLA", "RICORDA", "ORA", "MEMORIA"}
 REFUSED = "Questa cosa la faccio solo quando me la chiedi tu a voce."
+REFUSED_EN = "I only do that when you ask me yourself, out loud."
+OFFLINE_EN = "I can't connect to the internet right now."
+WMO_EN = {0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "overcast", 45: "fog", 48: "freezing fog", 51: "light drizzle", 53: "drizzle", 55: "heavy drizzle", 56: "freezing drizzle",
+          57: "freezing drizzle", 61: "light rain", 63: "rain", 65: "heavy rain", 66: "freezing rain", 67: "heavy freezing rain", 71: "light snow", 73: "snow", 75: "heavy snow", 77: "snow grains",
+          80: "light showers", 81: "showers", 82: "violent showers", 85: "snow showers", 86: "heavy snow showers", 95: "thunderstorm", 96: "thunderstorm with hail", 99: "thunderstorm with heavy hail"}
 NEED_CITY = "@CITTA"                                   # il meteo non sa dove abiti l'utente: chi chiama deve chiederglielo
 FAILURES = ("Non ", "Su Wikipedia non", "Nessun ", "Strumento")
 
@@ -229,7 +253,7 @@ class Tools(FileTools, PowerTools, ScreenTools):
     def __init__(self, cfg: dict, memory=None, on_timer: Callable[[str], Awaitable[None]] | None = None,
                  client: httpx.AsyncClient | None = None):
         self.cfg, self.memory, self.on_timer = cfg, memory, on_timer
-        self.http = client or httpx.AsyncClient(timeout=8.0, headers={"User-Agent": "Aria/0.2 (assistente vocale personale; uso locale) python-httpx"})
+        self.http = client or httpx.AsyncClient(timeout=8.0, headers={"User-Agent": "Aria/0.2 (personal voice assistant; local use) python-httpx"})
         self.timers: dict[int, asyncio.Task] = {}
         self.timer_meta: dict[int, tuple[float, str]] = {}      # id -> (quando scatta, etichetta): per «quanto manca?» e «annulla il timer»
         self._tid = 0
@@ -245,20 +269,21 @@ class Tools(FileTools, PowerTools, ScreenTools):
               "SCORCIATOIA": self._scorciatoia, "SCORCIATOIA_OK": self._scorciatoia_ok, "SCORCIATOIE": self._scorciatoie,
               "DOCUMENTO": self._documento, "BRIEFING": self._briefing, "NON_SO": self._non_so, "SCHERMO": self._schermo, "SISTEMA": self._sistema}.get(call.name)
         if fn is None:
-            return f"Strumento '{call.name}' sconosciuto."
+            return i18n.pick(f"Strumento '{call.name}' sconosciuto.", f"Unknown tool '{call.name}'.")
         try:
             out = await fn(call.arg)
         except PermissionError:
             log.warning("strumento %s: permesso negato", call.name)
-            return "Non ho il permesso di scrivere in quella cartella: controlla i permessi di Aria in Impostazioni di Sistema, sotto Privacy e sicurezza."
+            return i18n.pick("Non ho il permesso di scrivere in quella cartella: controlla i permessi di Aria in Impostazioni di Sistema, sotto Privacy e sicurezza.",
+                             "I don't have permission to write in that folder: check Aria's permissions in System Settings, under Privacy & Security.")
         except (WorkspaceError, MacError) as e:                  # problemi spiegabili: il messaggio e' gia' in italiano
             return str(e)
         except (httpx.HTTPError, asyncio.TimeoutError, OSError) as e:
             log.warning("strumento %s: errore di rete %s", call.name, e)
-            return OFFLINE
+            return i18n.pick(OFFLINE, OFFLINE_EN)
         except Exception as e:                                  # noqa: BLE001
             log.exception("strumento %s fallito", call.name)
-            return f"Non ci sono riuscita: {e}"
+            return i18n.pick(f"Non ci sono riuscita: {e}", f"I couldn't do it: {e}")
         return out[:1500 if call.name == "BRIEFING" else 900]
 
     # --- semplici
@@ -268,12 +293,21 @@ class Tools(FileTools, PowerTools, ScreenTools):
             from . import worldclock
             hit = worldclock.find_zone(a[6:])
             if not hit:
-                return "Non so che fuso orario abbia quel posto."
+                return i18n.pick("Non so che fuso orario abbia quel posto.", "I don't know which time zone that place is in.")
             zone, name = hit
             try:
                 when = worldclock.time_in(zone)
             except Exception:                                       # noqa: BLE001  (Windows senza il pacchetto tzdata: i fusi orari non ci sono)
-                return "Non ho i dati dei fusi orari su questo computer, quindi non so dirti l'ora di là."
+                return i18n.pick("Non ho i dati dei fusi orari su questo computer, quindi non so dirti l'ora di là.", "I don't have time zone data on this computer, so I can't tell you the time there.")
+            if i18n.is_en():
+                said = speak_time(when)[:-1]
+                h = when.hour
+                part = "at night" if h < 5 else "in the morning" if h < 12 else "in the afternoon" if h < 18 else "in the evening"
+                if h not in (0, 12):
+                    said += f" {part}"
+                today = dt.date.today()
+                extra = " It's already tomorrow there." if when.date() > today else " It's still yesterday there." if when.date() < today else ""
+                return f"In {name}, {said[0].lower() + said[1:]}.{extra}"
             said = speak_time(when)
             h = when.hour
             if said.startswith(("Sono", "È l'una")) and h not in (0, 12):                 # a 12 ore ci si confonde: si aggiunge «di sera», «di mattina»…
@@ -284,15 +318,15 @@ class Tools(FileTools, PowerTools, ScreenTools):
             today = dt.date.today()
             extra = " Là è già domani." if when.date() > today else " Là è ancora ieri." if when.date() < today else ""
             return f"{where[0].upper() + where[1:]} {said}{extra}"
-        if a.startswith("data") or a.startswith("giorno"):
+        if a.startswith(("data", "giorno", "date", "day")):
             return speak_date()
-        return speak_time() if a.startswith("ora") else speak_time() + " " + speak_date()
+        return speak_time() if a.startswith(("ora", "time")) else speak_time() + " " + speak_date()
 
     async def _calc(self, arg: str) -> str:
         try:
-            return f"Fa {speak_number(safe_eval(arg))}."
+            return i18n.pick(f"Fa {speak_number(safe_eval(arg))}.", f"That's {speak_number(safe_eval(arg))}.")
         except Exception:                                       # noqa: BLE001
-            return "Non riesco a fare questo calcolo."
+            return i18n.pick("Non riesco a fare questo calcolo.", "I can't work that out.")
 
     async def _converti(self, arg: str) -> str:
         from . import everyday
@@ -305,21 +339,28 @@ class Tools(FileTools, PowerTools, ScreenTools):
     TRANSLATE_SYSTEM = ("Sei un traduttore. Traduci la frase nella lingua richiesta. Rispondi SOLO con la traduzione, senza spiegazioni, senza virgolette e senza note. "
                         "Se la lingua richiesta e' l'italiano, traduci in italiano.")
 
+    TRANSLATE_SYSTEM_EN = ("You are a translator. Translate the sentence into the requested language. Reply ONLY with the translation, with no explanations, no quotation marks and no notes. "
+                           "If the requested language is English, translate into English.")
+
     async def _traduci(self, arg: str) -> str:
         """arg = «inglese|buongiorno a tutti». Un prompt a parte, a temperatura zero: il chatbot libero, su questo, scrive «bene morning»."""
         lang, _, body = arg.partition("|")
         lang, body = lang.strip().lower(), body.strip()
+        en = i18n.is_en()
         if not body:
-            return "Dimmi cosa devo tradurre e in che lingua, per esempio: traduci buongiorno in inglese."
-        if lang in ("cinese", "giapponese", "russo", "arabo", "coreano", "greco", "turco", "hindi", "ebraico", "thailandese", "vietnamita", "ucraino"):
-            return f"In {lang} non so scrivere né pronunciare bene. Posso tradurre in inglese, francese, spagnolo, tedesco, portoghese e in altre lingue europee."
+            return i18n.pick("Dimmi cosa devo tradurre e in che lingua, per esempio: traduci buongiorno in inglese.", "Tell me what to translate and into which language, for example: translate good morning to Spanish.")
+        if lang in ("cinese", "giapponese", "russo", "arabo", "coreano", "greco", "turco", "hindi", "ebraico", "thailandese", "vietnamita", "ucraino",
+                    "chinese", "japanese", "russian", "arabic", "korean", "greek", "turkish", "hebrew", "thai", "vietnamese", "ukrainian"):
+            return i18n.pick(f"In {lang} non so scrivere né pronunciare bene. Posso tradurre in inglese, francese, spagnolo, tedesco, portoghese e in altre lingue europee.",
+                             f"I can't write or pronounce {lang.capitalize()} well. I can translate into Spanish, French, German, Italian, Portuguese and other European languages.")
         if self.generate is None:
-            return "Per ora non riesco a tradurre."
-        out = (await self.generate(self.TRANSLATE_SYSTEM, f"Lingua: {lang}\nFrase: {body}", 120, 0.0)).strip()
+            return i18n.pick("Per ora non riesco a tradurre.", "I can't translate right now.")
+        system = self.TRANSLATE_SYSTEM_EN if en else self.TRANSLATE_SYSTEM
+        out = (await self.generate(system, f"{'Language' if en else 'Lingua'}: {lang}\n{'Sentence' if en else 'Frase'}: {body}", 120, 0.0)).strip()
         out = out.splitlines()[0].strip().strip("\"'«»“” ") if out else ""
         if not out:
-            return "Non sono riuscita a tradurlo, riprova."
-        return f"In {lang}: {out}."
+            return i18n.pick("Non sono riuscita a tradurlo, riprova.", "I couldn't translate it, try again.")
+        return i18n.pick(f"In {lang}: {out}.", f"In {lang.capitalize()}: {out}.")
 
     async def _caso(self, arg: str) -> str:
         from . import everyday
@@ -332,40 +373,54 @@ class Tools(FileTools, PowerTools, ScreenTools):
 
     async def _remember(self, arg: str) -> str:
         if not self.memory:
-            return "Memoria disattivata."
-        return "Va bene, me lo ricordo." if self.memory.add_fact(arg) else "Lo sapevo già."
+            return i18n.pick("Memoria disattivata.", "Memory is turned off.")
+        if self.memory.add_fact(arg):
+            return i18n.pick("Va bene, me lo ricordo.", "Okay, I'll remember that.")
+        return i18n.pick("Lo sapevo già.", "I already knew that.")
 
     async def _memoria(self, _arg: str) -> str:
-        return self.memory.describe() if self.memory else "Memoria disattivata."
+        return self.memory.describe() if self.memory else i18n.pick("Memoria disattivata.", "Memory is turned off.")
 
     async def _forget(self, arg: str) -> str:
         if not self.memory:
-            return "Memoria disattivata."
+            return i18n.pick("Memoria disattivata.", "Memory is turned off.")
         n = self.memory.forget(arg)
-        return "Fatto, l'ho dimenticato." if n else "Non ricordavo niente del genere."
+        if n:
+            return i18n.pick("Fatto, l'ho dimenticato.", "Done, I've forgotten it.")
+        return i18n.pick("Non ricordavo niente del genere.", "I didn't remember anything like that.")
 
     # --- timer
-    async def _timer(self, arg: str) -> str:
+    async def _timer(self, arg: str, at: dt.datetime | None = None) -> str:
         """arg = «dieci minuti | pasta» (una durata) oppure «metti una sveglia alle 7:30 | » (un orario). I timer si salvano su disco e si riarmano
-        al prossimo avvio: una sveglia del mattino non si perde se Aria viene riaperta."""
+        al prossimo avvio: una sveglia del mattino non si perde se Aria viene riaperta. `at`: l'orario e' gia' deciso (i promemoria di Windows)."""
         dur_txt, _, label = arg.partition("|")
         label = label.strip()
         now = self.now_fn()
-        sec = parse_duration(dur_txt)
-        at = None
+        sec = parse_duration(dur_txt) if at is None else max(1, int((at - now).total_seconds()))
         if not sec:
             w = parse_when(dur_txt, now) if dur_txt.strip() else None
             if w and w.has_time:
                 at = w.dt
                 sec = max(1, int((at - now).total_seconds()))
             else:
-                return f"{ASK}|TIMER||Per quanto tempo, o a che ora?"
+                return f"{ASK}|TIMER||" + i18n.pick("Per quanto tempo, o a che ora?", "For how long, or at what time?")
         self._tid += 1
         tid = self._tid
         due = time.time() + sec
         self.timers[tid] = asyncio.create_task(self._fire(tid, sec, label, due))
         self.timer_meta[tid] = (due, label)
         self._save_timers(add=(tid, due, label))
+        if i18n.is_en():
+            todo = label.startswith(("to ", "that "))
+            if at is not None:
+                when = say_when(at, True, now)
+                if todo:
+                    return pick([f"Okay, {when} I'll remind you {label}.", f"Sure, {when} I'll tell you {label}."])
+                return pick([f"Alarm set for {when}", f"Okay, I'll wake you {when}", f"Sure, alarm {when}"]) + (f", for {label}." if label else ".")
+            d = fmt_duration(sec)
+            if todo:                                                          # «remind me in ten minutes to turn off the oven»
+                return pick([f"Okay, in {d} I'll remind you {label}.", f"Sure, in {d} I'll tell you {label}."])
+            return pick([f"Timer set: {d}", f"Okay, {d}", f"Sure, I'll let you know in {d}"]) + (f", for {label}." if label else ".")
         if at is not None:
             when = say_when(at, True, now)
             if label.startswith("di "):
@@ -393,7 +448,7 @@ class Tools(FileTools, PowerTools, ScreenTools):
         """«quanto manca al timer?», «che timer ho?»"""
         live = self._live_timers()
         if not live:
-            return "Non hai nessun timer attivo."
+            return i18n.pick("Non hai nessun timer attivo.", "You don't have any active timers.")
         now = time.time()
         want = normalize(arg)
         if want:
@@ -401,35 +456,39 @@ class Tools(FileTools, PowerTools, ScreenTools):
             live = hit
         if len(live) == 1:
             _tid, due, label = live[0]
+            if i18n.is_en():
+                return f"{fmt_duration(max(1, int(due - now)))} left" + (f" on the timer for {label}." if label else " on the timer.")
             return f"Mancano {fmt_duration(max(1, int(due - now)))}" + (f" al timer per {label}." if label else " al timer.")
-        parts = [f"{fmt_duration(max(1, int(due - now)))}" + (f" per {label}" if label else "") for _t, due, label in live[:4]]
-        return f"Hai {words_it(len(live))} timer: " + "; ".join(parts) + "."
+        parts = [f"{fmt_duration(max(1, int(due - now)))}" + ((f" for {label}" if i18n.is_en() else f" per {label}") if label else "") for _t, due, label in live[:4]]
+        return (f"You have {words_it(len(live))} timers: " if i18n.is_en() else f"Hai {words_it(len(live))} timer: ") + "; ".join(parts) + "."
 
     async def _timer_annulla(self, arg: str) -> str:
         """«annulla il timer», «ferma la sveglia della pasta», «cancella tutti i timer»"""
         live = self._live_timers()
         if not live:
-            return "Non c'è nessun timer attivo."
+            return i18n.pick("Non c'è nessun timer attivo.", "There's no active timer.")
         want = normalize(arg)
-        if re.search(r"\b(?:tutti|tutte)\b", want):
+        if re.search(r"\b(?:tutti|tutte|all|every)\b", want):
             for tid, _d, _l in live:
                 self._drop_timer(tid)
-            return "Fatto, ho annullato tutti i timer." if len(live) > 1 else "Fatto, timer annullato."
+            if len(live) > 1:
+                return i18n.pick("Fatto, ho annullato tutti i timer.", "Done, I've cancelled all the timers.")
+            return i18n.pick("Fatto, timer annullato.", "Done, timer cancelled.")
         pick_ = [t for t in live if want and (want in normalize(t[2]) or normalize(t[2]) in want and t[2])] if want else []
         if not pick_ and len(live) == 1:
             pick_ = live
         if not pick_:
-            names = " e ".join(f"{fmt_duration(max(1, int(d - time.time())))}" + (f" per {l}" if l else "") for _t, d, l in live[:4])
-            return f"{ASK}|TIMER_ANNULLA||Hai più di un timer: {names}. Quale annullo?"
+            names = i18n.pick(" e ", " and ").join(f"{fmt_duration(max(1, int(d - time.time())))}" + ((f" for {l}" if i18n.is_en() else f" per {l}") if l else "") for _t, d, l in live[:4])
+            return f"{ASK}|TIMER_ANNULLA||" + i18n.pick(f"Hai più di un timer: {names}. Quale annullo?", f"You have more than one timer: {names}. Which one should I cancel?")
         for tid, _d, label in pick_:
             self._drop_timer(tid)
-        return "Fatto, ho annullato il timer" + (f" per {pick_[0][2]}." if len(pick_) == 1 and pick_[0][2] else ".")
+        return i18n.pick("Fatto, ho annullato il timer", "Done, I've cancelled the timer") + ((i18n.pick(f" per {pick_[0][2]}.", f" for {pick_[0][2]}.")) if len(pick_) == 1 and pick_[0][2] else ".")
 
     async def _fire(self, tid: int, sec: float, label: str, due: float | None = None) -> None:
         try:
             await asyncio.sleep(sec)
             if self.on_timer:
-                await self.on_timer(label or "il tempo che avevi chiesto")
+                await self.on_timer(label or i18n.pick("il tempo che avevi chiesto", "the time you asked for"))
         finally:
             self.timers.pop(tid, None)
             self.timer_meta.pop(tid, None)
@@ -489,7 +548,10 @@ class Tools(FileTools, PowerTools, ScreenTools):
         offs, label, rest = everyday.forecast_when(arg, self.now_fn().date())
         if offs is None:
             return label                                                   # oltre i 15 giorni le previsioni non ci sono: lo dice invece di dare quelle di oggi
-        city = re.sub(r"\b(a|di|meteo|tempo|previsioni|per|il|la|in)\b", " ", rest, flags=re.I).strip(" ,.")
+        if i18n.is_en():
+            city = re.sub(r"\b(?:in|at|for|the|weather|forecast|what|what's|whats|how's|hows|how|is|it|like|will|be|going|to|outside|there|now|temperature|raining|rain|sunny|snow|snowing|cold|hot|warm|check|tell|me|about|of|a|an|and|then|please)\b", " ", rest, flags=re.I).strip(" ,.?")
+        else:
+            city = re.sub(r"\b(a|di|meteo|tempo|previsioni|per|il|la|in)\b", " ", rest, flags=re.I).strip(" ,.")
         city = re.sub(r"\s+", " ", city)
         home = (self.memory.get_profile("city") if self.memory else None) or loc.get("city")      # la citta' detta dall'utente vale piu' di quella in config
         target = city or home
@@ -498,36 +560,53 @@ class Tools(FileTools, PowerTools, ScreenTools):
         if loc.get("city") and loc.get("lat") is not None and normalize(target) == normalize(loc["city"]):
             lat, lon, name = loc["lat"], loc["lon"], loc["city"]
         else:
-            g = await self.http.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": target, "count": 1, "language": "it"})
+            g = await self.http.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": target, "count": 1, "language": i18n.language()})
             res = (g.json().get("results") or [])
             if not res:
-                return f"Non trovo la città '{target}'."
+                return i18n.pick(f"Non trovo la città '{target}'.", f"I can't find the city '{target}'.")
             lat, lon, name = res[0]["latitude"], res[0]["longitude"], res[0]["name"]
         days = max(offs) + 1
+        en = i18n.is_en()
         if sun:
             r = await self.http.get("https://api.open-meteo.com/v1/forecast", params={"latitude": lat, "longitude": lon, "timezone": "auto", "forecast_days": days, "daily": "sunrise,sunset"})
             d = r.json()["daily"]
             day = offs[0]
             rise, setting = dt.datetime.fromisoformat(d["sunrise"][day]), dt.datetime.fromisoformat(d["sunset"][day])
+            if en:
+                return f"{label} in {name} the sun rises at {speak_clock(rise)} and sets at {speak_clock(setting)}."
             return f"{label} a {name} il sole sorge alle {speak_clock(rise)} e tramonta alle {speak_clock(setting)}."
-        r = await self.http.get("https://api.open-meteo.com/v1/forecast", params={
-            "latitude": lat, "longitude": lon, "timezone": "auto", "forecast_days": days,
-            "current": "temperature_2m,weather_code,wind_speed_10m",
-            "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"})
+        imperial = en and i18n.units(self.cfg) == "imperial"
+        params = {"latitude": lat, "longitude": lon, "timezone": "auto", "forecast_days": days,
+                  "current": "temperature_2m,weather_code,wind_speed_10m",
+                  "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"}
+        if imperial:
+            params["temperature_unit"] = "fahrenheit"
+        r = await self.http.get("https://api.open-meteo.com/v1/forecast", params=params)
         d = r.json()
         daily = d["daily"]
+        wmo = WMO_EN if en else WMO
         parts = []
         for k, day in enumerate(offs):
             rain = round(daily['precipitation_probability_max'][day] or 0)
-            lead = label if len(offs) == 1 else (GIORNI[(self.now_fn().date() + dt.timedelta(days=day)).weekday()].capitalize())
+            wd = (self.now_fn().date() + dt.timedelta(days=day)).weekday()
+            lead = label if len(offs) == 1 else (speech_en.DAYS[wd] if en else GIORNI[wd].capitalize())
+            if en:
+                head = f"{lead} in {name}" if k == 0 or len(offs) == 1 else lead
+                parts.append(f"{head}: {wmo.get(daily['weather_code'][day], 'variable')}, "
+                             f"between {round(daily['temperature_2m_min'][day])} and {round(daily['temperature_2m_max'][day])} degrees, "
+                             f"{rain} percent chance of rain.")
+                continue
             head = f"{lead} a {name}" if k == 0 or len(offs) == 1 else lead
-            parts.append(f"{head}: {WMO.get(daily['weather_code'][day], 'variabile')}, "
+            parts.append(f"{head}: {wmo.get(daily['weather_code'][day], 'variabile')}, "
                          f"tra {round(daily['temperature_2m_min'][day])} e {round(daily['temperature_2m_max'][day])} gradi, "
                          f"probabilità di pioggia {rain} per cento.")
         txt = " ".join(parts)
         if offs == [0]:
             c = d["current"]
-            txt += f" Adesso ci sono {round(c['temperature_2m'])} gradi, {WMO.get(c['weather_code'], 'variabile')}."
+            if en:
+                txt += f" Right now it's {round(c['temperature_2m'])} degrees, {wmo.get(c['weather_code'], 'variable')}."
+            else:
+                txt += f" Adesso ci sono {round(c['temperature_2m'])} gradi, {wmo.get(c['weather_code'], 'variabile')}."
         return txt
 
     # --- Wikipedia
@@ -544,13 +623,14 @@ class Tools(FileTools, PowerTools, ScreenTools):
         return None
 
     async def _wiki(self, arg: str) -> str:
-        s = await self._get_json("https://it.wikipedia.org/w/api.php",
+        wiki = i18n.language()
+        s = await self._get_json(f"https://{wiki}.wikipedia.org/w/api.php",
                                  {"action": "opensearch", "search": arg, "limit": 1, "format": "json", "namespace": 0})
         if not s or not s[1]:
-            return f"Su Wikipedia non trovo niente su '{arg}'."
-        d = await self._get_json("https://it.wikipedia.org/api/rest_v1/page/summary/" + s[1][0].replace(" ", "_"))
+            return i18n.pick(f"Su Wikipedia non trovo niente su '{arg}'.", f"I can't find anything about '{arg}' on Wikipedia.")
+        d = await self._get_json(f"https://{wiki}.wikipedia.org/api/rest_v1/page/summary/" + s[1][0].replace(" ", "_"))
         ex = ((d or {}).get("extract") or "").strip()
-        return (f"{s[1][0]}: " + ex[:520]) if ex else f"Nessun riassunto per '{s[1][0]}'."
+        return (f"{s[1][0]}: " + ex[:520]) if ex else i18n.pick(f"Nessun riassunto per '{s[1][0]}'.", f"No summary for '{s[1][0]}'.")
 
     # --- ricerca web gratuita: SearXNG (tuo) oppure DuckDuckGo via libreria ddgs
     async def _web_results(self, arg: str, n: int | None = None) -> list[tuple[str, str, str]]:
@@ -559,16 +639,16 @@ class Tools(FileTools, PowerTools, ScreenTools):
         n = n or cfg.get("max_results", 4)
         if cfg.get("searxng_url"):
             r = await self.http.get(cfg["searxng_url"].rstrip("/") + "/search",
-                                    params={"q": arg, "format": "json", "language": "it-IT", "safesearch": 1})
+                                    params={"q": arg, "format": "json", "language": "en-US" if i18n.is_en() else "it-IT", "safesearch": 1})
             return [(x.get("title", ""), x.get("content", ""), x.get("url", "")) for x in r.json().get("results", [])[:n]]
 
         def blocking():
             from ddgs import DDGS                          # pip install ddgs
-            return [(x.get("title", ""), x.get("body", ""), x.get("href", "")) for x in DDGS().text(arg, region="it-it", max_results=n)]
+            return [(x.get("title", ""), x.get("body", ""), x.get("href", "")) for x in DDGS().text(arg, region="us-en" if i18n.is_en() else "it-it", max_results=n)]
         return await asyncio.get_running_loop().run_in_executor(None, blocking)
 
     async def _search(self, arg: str) -> str:
         results = await self._web_results(arg)
         if not results:
-            return f"Nessun risultato per '{arg}'."
-        return "Risultati: " + " | ".join(f"{t}: {b[:160]}" for t, b, _u in results)
+            return i18n.pick(f"Nessun risultato per '{arg}'.", f"No results for '{arg}'.")
+        return i18n.pick("Risultati: ", "Results: ") + " | ".join(f"{t}: {b[:160]}" for t, b, _u in results)

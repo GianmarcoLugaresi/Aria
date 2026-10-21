@@ -1,0 +1,9 @@
+# file di sistema e di lavoro che non vanno nel repository
+.DS_Store
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.build/
+app/build/
+app/dist/

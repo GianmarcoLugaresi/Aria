@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aria"
-version = "0.3.1"
+version = "0.4.0"
 description = "Aria: assistente vocale da scrivania in italiano, 100% locale"
 readme = "README.md"
 license = {text = "MIT"}
@@ -33,4 +33,4 @@ raspberry = ["aria[audio,vad,stt,piper,search,pi]"]
 include = ["aria*"]
 
 [tool.setuptools.package-data]
-aria = ["voices/*.wav", "voices/*.txt"]
+aria = ["voices/*.wav", "voices/*.txt", "data/*.md"]

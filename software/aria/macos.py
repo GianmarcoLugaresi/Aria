@@ -18,23 +18,28 @@ import time
 import urllib.parse
 from difflib import SequenceMatcher
 
+from . import i18n
 from .textutil import normalize
 
 
 _ACCENTS = str.maketrans("àáâäèéêëìíîïòóôöùúûüñç", "aaaaeeeeiiiioooouuuunc")
 
 
+APP_NAMES_EN = {"Promemoria": "Reminders", "Calendario": "Calendar", "Musica": "Music"}
+
+
 class MacError(Exception):
-    """Un problema spiegabile all'utente, gia' in italiano."""
+    """Un problema spiegabile all'utente, gia' nella sua lingua (italiano o inglese, vedi i18n.py)."""
 
 
 def _subprocess_run(argv: list[str], timeout: float, stdin: str | None = None) -> tuple[int, str, str]:
     try:
         p = subprocess.run(argv, input=stdin, capture_output=True, text=True, timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
-        raise MacError("Ci mette troppo: forse macOS sta aspettando che tu consenta ad Aria di controllare quell'app. Controlla se c'è una richiesta aperta e riprova.")
+        raise MacError(i18n.pick("Ci mette troppo: forse macOS sta aspettando che tu consenta ad Aria di controllare quell'app. Controlla se c'è una richiesta aperta e riprova.",
+                                 "It's taking too long: macOS may be waiting for you to allow Aria to control that app. Check whether a permission request is open and try again."))
     except FileNotFoundError as e:
-        raise MacError(f"Non trovo il comando «{os.path.basename(argv[0])}» su questo Mac.") from e
+        raise MacError(i18n.pick(f"Non trovo il comando «{os.path.basename(argv[0])}» su questo Mac.", f"I can't find the \"{os.path.basename(argv[0])}\" command on this Mac.")) from e
     return p.returncode, p.stdout, p.stderr
 
 
@@ -47,9 +52,16 @@ APP_ALIASES = {
     "borsa": "Stocks", "meteo": "Weather", "facetime": "FaceTime", "podcast": "Podcasts", "registratore": "Voice Memos", "memo vocali": "Voice Memos",
     "monitor attivita": "Activity Monitor", "terminale": "Terminal", "editor di testo": "TextEdit", "testo": "TextEdit", "scorciatoie": "Shortcuts",
     "app store": "App Store", "tv": "TV", "chiavi": "Passwords", "password": "Passwords",
+    # i nomi inglesi (la lingua di Aria si sceglie nelle Impostazioni)
+    "calendar": "Calendar", "reminders": "Reminders", "notes": "Notes", "maps": "Maps", "photos": "Photos", "music": "Music", "clock": "Clock", "calculator": "Calculator",
+    "settings": "System Settings", "system settings": "System Settings", "system preferences": "System Settings", "preferences": "System Settings", "contacts": "Contacts",
+    "address book": "Contacts", "books": "Books", "stocks": "Stocks", "weather": "Weather", "podcasts": "Podcasts", "voice memos": "Voice Memos", "voice recorder": "Voice Memos",
+    "activity monitor": "Activity Monitor", "terminal": "Terminal", "text editor": "TextEdit", "textedit": "TextEdit", "shortcuts": "Shortcuts", "passwords": "Passwords",
+    "keychain": "Passwords", "imessage": "Messages", "text messages": "Messages", "web browser": "Safari",
 }
 _APP_DIRS = ("/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities")
-_FILLER = {"l", "il", "lo", "la", "app", "applicazione", "programma", "di", "del", "dell", "sul", "mio", "mia", "per", "favore"}
+_FILLER = {"l", "il", "lo", "la", "app", "applicazione", "programma", "di", "del", "dell", "sul", "mio", "mia", "per", "favore",
+           "the", "my", "application", "program", "please", "your"}
 
 SITES = {
     "youtube": "https://www.youtube.com", "google": "https://www.google.com", "gmail": "https://mail.google.com", "wikipedia": "https://it.wikipedia.org",
@@ -68,21 +80,34 @@ _DOMAIN = re.compile(r"^(?:www\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-
 _IP = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
 
+SITES_EN = {"wikipedia": "https://en.wikipedia.org", "amazon": "https://www.amazon.com", "bbc": "https://www.bbc.com", "cnn": "https://www.cnn.com", "nytimes": "https://www.nytimes.com",
+            "the guardian": "https://www.theguardian.com", "guardian": "https://www.theguardian.com", "reddit": "https://www.reddit.com", "ebay": "https://www.ebay.com", "imdb": "https://www.imdb.com",
+            "translate": "https://translate.google.com", "google translate": "https://translate.google.com", "google drive": "https://drive.google.com", "google maps": "https://maps.google.com",
+            "apple maps": "https://maps.apple.com", "hacker news": "https://news.ycombinator.com", "stack overflow": "https://stackoverflow.com", "twitch": "https://www.twitch.tv"}
+SEARCH_URLS_EN = {"wikipedia": "https://en.wikipedia.org/w/index.php?search={q}", "amazon": "https://www.amazon.com/s?k={q}", "reddit": "https://www.reddit.com/search/?q={q}",
+                  "imdb": "https://www.imdb.com/find/?q={q}", "ebay": "https://www.ebay.com/sch/i.html?_nkw={q}", "bing": "https://www.bing.com/search?q={q}",
+                  "duckduckgo": "https://duckduckgo.com/?q={q}", "google maps": "https://maps.google.com/?q={q}", "apple maps": "https://maps.apple.com/?q={q}",
+                  "twitter": "https://x.com/search?q={q}", "netflix": "https://www.netflix.com/search?q={q}"}
+
+
 def site_url(query: str) -> str | None:
     """«youtube», «repubblica punto it», «example.com» -> un indirizzo https sicuro (mai IP, localhost o altri protocolli)."""
     q = re.sub(r"[^a-z0-9. -]+", " ", query.lower().translate(_ACCENTS))          # si tengono i punti: "example.com" e' un indirizzo
-    q = re.sub(r"\b(il|lo|la|sito|pagina|web|di|del|dell)\b", " ", q)
+    q = re.sub(r"\b(il|lo|la|sito|pagina|web|di|del|dell|the|website|site|webpage|page|of)\b", " ", q)
     q = re.sub(r"\s+", " ", q).strip(" .")
+    if i18n.is_en() and q in SITES_EN:
+        return SITES_EN[q]
     if q in SITES:
         return SITES[q]
-    d = re.sub(r"\s+punto\s+", ".", q).replace(" ", "")
+    d = re.sub(r"\s+(?:punto|dot)\s+", ".", q).replace(" ", "")
     if "." in d and _DOMAIN.match(d) and not _IP.match(d) and d != "localhost":
         return "https://" + d
     return None
 
 
 def search_url(engine: str, text: str) -> str | None:
-    tpl = _SEARCH_URLS.get(normalize(engine))
+    e = normalize(engine)
+    tpl = (SEARCH_URLS_EN.get(e) if i18n.is_en() else None) or _SEARCH_URLS.get(e)
     return tpl.format(q=urllib.parse.quote(text.strip(), safe="")) if tpl and text.strip() else None
 
 
@@ -95,12 +120,14 @@ class Mac:
 
     def _need_mac(self) -> None:
         if self.platform != "darwin":
-            raise MacError("Questa funzione c'è solo sul Mac.")
+            raise MacError(i18n.pick("Questa funzione c'è solo sul Mac.", "This feature only works on the Mac."))
 
     # ---------------------------------------------------------------- AppleScript
     def osa(self, script: str, *args: str, timeout: float = 20.0, app: str = "") -> str:
         """Esegue uno script costante; i dati vanno in `args` (item N of argv). Restituisce l'output (o solleva MacError spiegabile)."""
         self._need_mac()
+        if i18n.is_en():
+            app = APP_NAMES_EN.get(app, app)                         # (gli script parlano con i nomi veri delle app; qui serve solo il nome da dire nei messaggi)
         argv = ["osascript"]
         for line in script.strip("\n").splitlines():
             argv += ["-e", line]
@@ -110,13 +137,16 @@ class Mac:
         if code != 0:
             low = (err or "").lower()
             if "-1743" in low or "not authorized" in low or "non autorizzat" in low:
+                if i18n.is_en():
+                    raise MacError(f"I don't have permission to control {app or 'that app'}: allow it in System Settings, Privacy & Security, Automation, under Aria.")
                 what = f" {app}" if app else " quell'app"
                 raise MacError(f"Non ho il permesso di controllare{what}: consentilo in Impostazioni di Sistema, Privacy e sicurezza, Automazione, alla voce Aria.")
             if "-600" in low or "isn't running" in low or "non è in esecuzione" in low:
-                raise MacError(f"{app or 'L’app'} non è aperta.")
+                raise MacError(i18n.pick(f"{app or 'L’app'} non è aperta.", f"{app or 'The app'} isn't open."))
             if "-1728" in low or "can't get" in low:
-                raise MacError("Non ho trovato quello che cercavo.")
-            raise MacError("macOS non ha eseguito il comando" + (f" ({err.strip().splitlines()[-1][:80]})" if err.strip() else "."))
+                raise MacError(i18n.pick("Non ho trovato quello che cercavo.", "I couldn't find what I was looking for."))
+            tail = f" ({err.strip().splitlines()[-1][:80]})" if err.strip() else "."
+            raise MacError(i18n.pick("macOS non ha eseguito il comando", "macOS didn't run the command") + tail)
         return (out or "").strip()
 
     # ---------------------------------------------------------------- Scorciatoie
@@ -124,14 +154,14 @@ class Mac:
         self._need_mac()
         code, out, _err = self._run(["shortcuts", "list"], 15.0, None)
         if code != 0:
-            raise MacError("Non riesco a leggere le tue Scorciatoie.")
+            raise MacError(i18n.pick("Non riesco a leggere le tue Scorciatoie.", "I can't read your Shortcuts."))
         return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
     def shortcuts_run(self, name: str, timeout: float = 120.0) -> str:
         self._need_mac()
         code, out, err = self._run(["shortcuts", "run", name], timeout, None)
         if code != 0:
-            raise MacError(f"La scorciatoia «{name}» non è andata a buon fine.")
+            raise MacError(i18n.pick(f"La scorciatoia «{name}» non è andata a buon fine.", f"The shortcut \"{name}\" didn't succeed."))
         return (out or "").strip()
 
     # ---------------------------------------------------------------- app e siti
@@ -176,25 +206,25 @@ class Mac:
         self._need_mac()
         code, _o, _e = self._run(["open", "-a", name], 15.0, None)
         if code != 0:
-            raise MacError(f"Non sono riuscita ad aprire {name}.")
+            raise MacError(i18n.pick(f"Non sono riuscita ad aprire {name}.", f"I couldn't open {name}."))
 
     def open_url(self, url: str) -> None:
         self._need_mac()
         if urllib.parse.urlparse(url).scheme not in ("http", "https"):          # ultima barriera: mai file:// o altri protocolli
-            raise MacError("Apro solo indirizzi web.")
+            raise MacError(i18n.pick("Apro solo indirizzi web.", "I only open web addresses."))
         code, _o, _e = self._run(["open", url], 15.0, None)
         if code != 0:
-            raise MacError("Non sono riuscita ad aprire il sito.")
+            raise MacError(i18n.pick("Non sono riuscita ad aprire il sito.", "I couldn't open the website."))
 
     def open_music_search(self, app: str, query: str) -> None:
         """Apre la RICERCA nell'app musicale (Apple Music o Spotify): AppleScript non puo' cercare nel catalogo in streaming, ma la ricerca si apre.
         Solo gli schemi music:// e spotify:, con il testo cercato codificato (mai testo libero nella riga di comando)."""
         self._need_mac()
         q = urllib.parse.quote(query.strip()[:80], safe="")
-        url = f"spotify:search:{q}" if app == "Spotify" else f"music://music.apple.com/it/search?term={q}"
+        url = f"spotify:search:{q}" if app == "Spotify" else f"music://music.apple.com/{i18n.pick('it', 'us')}/search?term={q}"
         code, _o, _e = self._run(["open", url], 15.0, None)
         if code != 0:
-            raise MacError("Non sono riuscita ad aprire la ricerca.")
+            raise MacError(i18n.pick("Non sono riuscita ad aprire la ricerca.", "I couldn't open the search."))
 
     # ---------------------------------------------------------------- volume
     def volume_get(self) -> int:
@@ -202,7 +232,7 @@ class Mac:
         try:
             return int(float(out))
         except ValueError:
-            raise MacError("Non riesco a leggere il volume.")
+            raise MacError(i18n.pick("Non riesco a leggere il volume.", "I can't read the volume."))
 
     def volume_set(self, n: int) -> int:
         n = max(0, min(100, int(n)))

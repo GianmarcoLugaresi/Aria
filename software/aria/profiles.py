@@ -139,7 +139,42 @@ def has_vision(ref: str | None) -> bool:
 
 def vision_tag(ref: str | None) -> str:
     """Per l'elenco dei chatbot nelle Impostazioni: quali leggono anche le immagini (solo quelli «dentro Aria»: la visione gira con MLX)."""
-    return " · vede le immagini" if is_mlx_ref(ref) and has_vision(ref) else ""
+    if not (is_mlx_ref(ref) and has_vision(ref)):
+        return ""
+    from . import i18n, ui_en
+    return ui_en.VISION_TAG if i18n.is_en() else " · vede le immagini"
+
+
+# ---- i testi mostrati nelle Impostazioni, nella lingua in uso (l'inglese sta in ui_en.py; chi manca ricade sull'italiano)
+def stt_note(c: dict) -> str:
+    from . import i18n, ui_en
+    return ui_en.STT_NOTES.get(c["repo"], c["note"]) if i18n.is_en() else c["note"]
+
+
+def stt_display_label(repo: str) -> str:
+    from . import i18n, ui_en
+    return (ui_en.STT_LABELS.get(repo) if i18n.is_en() else None) or STT_NAMES.get(repo, repo)
+
+
+def llm_note(c: dict) -> str:
+    from . import i18n, ui_en
+    return ui_en.LLM_NOTES.get(c["ref"], c["note"]) if i18n.is_en() else c["note"]
+
+
+def profile_text(pid: str) -> tuple[str, str]:
+    """(nome, descrizione) di una versione nella lingua in uso."""
+    from . import i18n, ui_en
+    if i18n.is_en() and pid in ui_en.PROFILES:
+        return ui_en.PROFILES[pid]
+    return PROFILES[pid]["label"], PROFILES[pid]["summary"]
+
+
+def power_text(pid: str) -> tuple[str, str]:
+    """(nome, cosa fa) di una funzione nella lingua in uso."""
+    from . import i18n, ui_en
+    if i18n.is_en() and pid in ui_en.POWERS:
+        return ui_en.POWERS[pid]
+    return POWERS[pid]
 
 
 def needs_no_think(model: str) -> bool:
@@ -166,7 +201,7 @@ def load_settings(config_path: str | None) -> dict:
         return {}
 
 
-PRESERVED_KEYS = ("workspace", "powers", "wake_phrase")           # chiavi che non riguardano versione/modelli: non si perdono quando si salva una scelta di modelli
+PRESERVED_KEYS = ("workspace", "powers", "wake_phrase", "language")           # chiavi che non riguardano versione/modelli: non si perdono quando si salva una scelta di modelli
 
 
 def save_settings(config_path: str, settings: dict) -> None:
@@ -246,6 +281,28 @@ def set_workspace(config_path: str, path: str | None) -> None:
         cur["workspace"] = path
     else:
         cur.pop("workspace", None)
+    p = settings_path(config_path)
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cur, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, p)
+
+
+def get_language(config_path: str | None) -> str | None:
+    """La lingua scelta nelle Impostazioni («it» o «en»), oppure None se non e' stata scelta."""
+    from . import i18n
+    return i18n.clean(load_settings(config_path).get("language"))
+
+
+def set_language(config_path: str, code: str | None) -> None:
+    """Salva (o toglie, con None: si torna a config.yaml e alla lingua del sistema) la lingua, lasciando intatto il resto delle impostazioni."""
+    from . import i18n
+    cur = load_settings(config_path)
+    c = i18n.clean(code)
+    if c:
+        cur["language"] = c
+    else:
+        cur.pop("language", None)
     p = settings_path(config_path)
     tmp = p + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

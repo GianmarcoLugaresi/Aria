@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import random
 import re
+import sys
 from dataclasses import dataclass
 
+from . import i18n, rhythm_en
 from .textutil import normalize
 
 # ---------------------------------------------------------------- riconoscere il tipo di turno (sul testo normalizzato: minuscolo, senza accenti)
@@ -53,10 +55,14 @@ class Turn:
 
     @property
     def budget(self) -> str:
+        if i18n.is_en():
+            return rhythm_en.TEXT["budget"].format(lo=self.min_words, hi=self.max_words, sent=self.max_sentences)
         return f"tra {self.min_words} e {self.max_words} parole, al massimo {self.max_sentences} frasi"
 
     @property
     def question_rule(self) -> str:
+        if i18n.is_en():
+            return rhythm_en.TEXT["ask" if self.allow_question else "noask"]
         if self.allow_question:
             return "Puoi chiudere con UNA sola domanda breve su un dettaglio concreto, non su come si sente."
         return "NIENTE domande in questa risposta: nessun punto interrogativo. Chiudi con un'affermazione o un pensiero tuo."
@@ -82,7 +88,7 @@ def _turn(mode: str, allow_question: bool) -> Turn:
         "posizione": (15, 45, 2, 100, +0.05, "posizione"),
     }[mode]
     lo, hi, sent, tok, dt, shots = spec
-    return Turn(mode, lo, hi, sent, tok, dt, allow_question, MOVES[mode], shots)
+    return Turn(mode, lo, hi, sent, tok, dt, allow_question, (rhythm_en.MOVES if i18n.is_en() else MOVES)[mode], shots)
 
 
 def asked_last(history: list[dict]) -> bool:
@@ -106,6 +112,8 @@ def plan(history: list[dict], user_text: str, mood: str | None = None, long: str
     t = normalize(text)
     words = len(text.split())
     can_ask = not asked_last(history)
+    R = rhythm_en if i18n.is_en() else sys.modules[__name__]
+    _SELF_DOWN, _CATASTROPHE, _OPINION, _DEEP, _BIG_DECISION, _LOW_ENERGY = R.SELF_DOWN, R.CATASTROPHE, R.OPINION, R.DEEP, R.BIG_DECISION, R.LOW_ENERGY
     if _SELF_DOWN.search(t) or _CATASTROPHE.search(t):
         return _turn("attrito", False)
     if _OPINION.search(t) and not _DEEP.search(t) and not _BIG_DECISION.search(t):                  # una scelta di vita non si liquida con un 70/30: ci pensa style (esempi «consiglio»)
@@ -125,12 +133,13 @@ def plan(history: list[dict], user_text: str, mood: str | None = None, long: str
 
 def is_concept_question(t: str) -> bool:
     """Sul testo normalizzato: «come funziona una cache?», «che vuol dire che un file clippa?», «perché le foglie sono verdi?»."""
-    return bool(_EXPLAIN.search(t) or (_WHY.search(t) and not _ABOUT_HER.search(t)))
+    R = rhythm_en if i18n.is_en() else sys.modules[__name__]
+    return bool(R.EXPLAIN.search(t) or (R.WHY.search(t) and not R.ABOUT_HER.search(t)))
 
 
 def hint(turn: Turn) -> str:
     """Le tre righe per il prompt: la mossa, la lunghezza, la regola delle domande."""
-    return f"{turn.move} Lunghezza: {turn.budget}. {turn.question_rule}"
+    return f"{turn.move} {rhythm_en.TEXT['length'] if i18n.is_en() else 'Lunghezza'}: {turn.budget}. {turn.question_rule}"
 
 
 def temperature(turn: Turn | None, base: float) -> float | None:
@@ -151,7 +160,7 @@ def _words(s: str) -> int:
 
 def _unquestion(s: str) -> str:
     """«…, vero?» -> «…»: la coda da domanda retorica diventa un'affermazione."""
-    out = _TAG_Q.sub(".", s.rstrip())
+    out = (rhythm_en.TAG_Q if i18n.is_en() else _TAG_Q).sub(".", s.rstrip())
     return out if out != s.rstrip() else s
 
 
@@ -204,3 +213,7 @@ def enforce(text: str, turn: Turn | None) -> str:
         return text
     gov = Governor(turn)
     return gov.take(text)
+
+
+# nomi senza il trattino basso: li usa anche rhythm_en.py, cosi' plan() sceglie le tabelle della lingua in uso con lo stesso codice
+OPINION, SELF_DOWN, CATASTROPHE, DEEP, BIG_DECISION, LOW_ENERGY, EXPLAIN, WHY, ABOUT_HER = _OPINION, _SELF_DOWN, _CATASTROPHE, _DEEP, _BIG_DECISION, _LOW_ENERGY, _EXPLAIN, _WHY, _ABOUT_HER

@@ -69,7 +69,7 @@ enum Paths {
             let src = res.appendingPathComponent("defaults/" + name)
             if !fm.fileExists(atPath: dest.path), fm.fileExists(atPath: src.path) {
                 try? fm.copyItem(at: src, to: dest)
-                log("creato \(dest.path)")
+                log(tr("creato \(dest.path)", "created \(dest.path)"))
             }
         }
     }

@@ -14,10 +14,42 @@ import re
 import sqlite3
 import time
 
+from . import i18n
 from .textutil import normalize
 
 DAY = 86400.0
 PROFILE_LABELS = {"name": "nome", "city": "città"}
+
+
+_FIRST = {"i'm": ("you're", "they're"), "i’m": ("you're", "they're"), "i've": ("you've", "they've"), "i'll": ("you'll", "they'll"), "i'd": ("you'd", "they'd"), "i": ("you", "they"),
+          "me": ("you", "them"), "my": ("your", "their"), "mine": ("yours", "theirs"), "myself": ("yourself", "themselves"), "am": ("are", "are")}
+_FIRST_RX = re.compile(r"\b(i['’]m|i['’]ve|i['’]ll|i['’]d|i|me|my|mine|myself)\b", re.I)
+_THIRD_YOU = ((r"^is\b", "you're"), (r"^has\b", "you have"), (r"^works\b", "you work"), (r"^studies\b", "you study"), (r"^loves\b", "you love"), (r"^likes\b", "you like"),
+              (r"^hates\b", "you hate"), (r"^dislikes\b", "you dislike"), (r"^adores\b", "you adore"), (r"^eats\b", "you eat"), (r"^can't stand\b", "you can't stand"),
+              (r"^allergic\b", "you're allergic"), (r"^doesn't\b", "you don't"), (r"^(?=had|argued|broke|lost)", "you "))
+
+
+def _says_i(text: str) -> bool:
+    return bool(_FIRST_RX.search(text))
+
+
+def person(fact: str, who: str = "you") -> str:
+    """Un fatto sull'utente detto bene in inglese: «my dog is called Max» -> «your dog is called Max» (who='you') / «their dog…» (who='they');
+    «Is vegetarian» -> «you're vegetarian». Per i fatti scritti dall'utente stesso (prima persona) e per quelli che Aria ricava (terza persona senza soggetto)."""
+    idx = 0 if who == "you" else 1
+    f = re.sub(r"\s*\((?:said|told) on [^)]*\)", "", fact.strip()) if who == "you" else fact.strip()
+    if _says_i(f):
+        out = _FIRST_RX.sub(lambda m: _FIRST[m.group(1).lower().replace("’", "'")][idx], f)
+        out = re.sub(r"\b(you|they) am\b", r"\1 are", out, flags=re.I)
+        out = re.sub(r"\b(you|they) was\b", r"\1 were", out, flags=re.I)
+        return out[:1].lower() + out[1:]
+    if who != "you":
+        return f
+    low = f[:1].lower() + f[1:]
+    for rx, rep in _THIRD_YOU:
+        if re.match(rx, low, re.I):
+            return re.sub(r"\btheir\b", "your", re.sub(rx, rep, low, count=1, flags=re.I), flags=re.I)
+    return re.sub(r"\btheir\b", "your", low, flags=re.I)
 
 
 class Memory:
@@ -202,47 +234,58 @@ class Memory:
         then = dt.datetime.fromtimestamp(float(ts))
         days = (dt.datetime.fromtimestamp(now).date() - then.date()).days
         part = "sera" if then.hour >= 18 else "giorno"
-        when = ("oggi, qualche ora fa" if days == 0 else ("ieri sera" if part == "sera" else "ieri") if days == 1 else "l'altro ieri" if days == 2 else "qualche giorno fa")
+        if i18n.is_en():
+            when = ("earlier today, a few hours ago" if days == 0 else ("yesterday evening" if part == "sera" else "yesterday") if days == 1 else "the day before yesterday" if days == 2 else "a few days ago")
+        else:
+            when = ("oggi, qualche ora fa" if days == 0 else ("ieri sera" if part == "sera" else "ieri") if days == 1 else "l'altro ieri" if days == 2 else "qualche giorno fa")
         return text, when
 
     def context(self, query: str | None = None, k: int = 6, now: float | None = None, include_last: bool = False) -> str:
+        en = i18n.is_en()
         lines = []
         p = self.profile()
         known = []
         if p.get("name"):
-            known.append(f"si chiama {p['name']}")
+            known.append(f"their name is {p['name']}" if en else f"si chiama {p['name']}")
         if p.get("city"):
-            known.append(f"abita a {p['city']}")
+            known.append(f"they live in {p['city']}" if en else f"abita a {p['city']}")
         if known:
-            lines.append("Sai con certezza che " + " e ".join(known) + ". Usa il nome ogni tanto, non a ogni frase.")
+            lines.append(("You know for sure that " + " and ".join(known) + ". Use the name now and then, not in every sentence.") if en
+                         else "Sai con certezza che " + " e ".join(known) + ". Usa il nome ogni tanto, non a ogni frase.")
         facts = self.relevant(query, k, now)
         if facts:
-            lines.append("Cose che l'utente ti ha detto e che ricordi: " + "; ".join(facts) + ". Se c'entrano con quello che dice adesso, ogni tanto riprendile con naturalezza (senza elencarle).")
+            lines.append(("Things the user told you that you remember: " + "; ".join(person(f, "they") for f in facts) + ". If they relate to what they are saying now, bring them up naturally now and then (without listing them).") if en
+                         else "Cose che l'utente ti ha detto e che ricordi: " + "; ".join(facts) + ". Se c'entrano con quello che dice adesso, ogni tanto riprendile con naturalezza (senza elencarle).")
         last = self.last_topic(now) if include_last else None
         if last:
-            lines.append(f"L'ultima volta ({last[1]}) ti ha detto: «{last[0]}». Se viene naturale, chiedi come va con quella cosa, una volta sola e senza insistere.")
-        when = {-3: "qualche giorno fa", -2: "l'altro ieri", -1: "ieri", 0: "oggi", 1: "domani", 2: "dopodomani"}
+            lines.append((f"Last time ({last[1]}) they told you: \"{last[0]}\". If it comes naturally, ask how that is going, only once and without pushing.") if en
+                         else f"L'ultima volta ({last[1]}) ti ha detto: «{last[0]}». Se viene naturale, chiedi come va con quella cosa, una volta sola e senza insistere.")
+        when = ({-3: "a few days ago", -2: "the day before yesterday", -1: "yesterday", 0: "today", 1: "tomorrow", 2: "the day after tomorrow"} if en
+                else {-3: "qualche giorno fa", -2: "l'altro ieri", -1: "ieri", 0: "oggi", 1: "domani", 2: "dopodomani"})
         notes = []
         for text, d in self.upcoming(now):
-            notes.append(f"{text} ({when[d]}" + ("; se capita, chiedigli con naturalezza com'è andata)" if d < 0 else ")"))
+            notes.append(f"{text} ({when[d]}" + (("; if it comes up, naturally ask how it went)" if en else "; se capita, chiedigli con naturalezza com'è andata)") if d < 0 else ")"))
         if notes:
-            lines.append("Impegni che ti ha detto: " + "; ".join(notes) + ".")
+            lines.append(("Commitments they told you about: " if en else "Impegni che ti ha detto: ") + "; ".join(notes) + ".")
         return "\n".join(lines)
 
     def describe(self, k: int = 6) -> str:
         """Cosa sa Aria dell'utente, detto a voce (per 'cosa sai di me?')."""
         p = self.profile()
+        en = i18n.is_en()
         bits = []
         if p.get("name"):
-            bits.append(f"ti chiami {p['name']}")
+            bits.append(f"your name is {p['name']}" if en else f"ti chiami {p['name']}")
         if p.get("city"):
-            bits.append(f"abiti a {p['city']}")
+            bits.append(f"you live in {p['city']}" if en else f"abiti a {p['city']}")
         facts = self.relevant(None, k)
         if not bits and not facts:
-            return "Non so ancora niente di te. Raccontami qualcosa: per cominciare, come ti chiami?"
+            return ("I don't know anything about you yet. Tell me something: to start, what's your name?" if en
+                    else "Non so ancora niente di te. Raccontami qualcosa: per cominciare, come ti chiami?")
         out = []
         if bits:
-            out.append("So che " + " e ".join(bits) + ".")
+            out.append(("I know that " + " and ".join(bits) + ".") if en else "So che " + " e ".join(bits) + ".")
         if facts:
-            out.append("Mi ricordo anche che " + "; ".join(f[0].lower() + f[1:] for f in facts) + ".")
+            out.append(("I also remember that " + "; ".join(dict.fromkeys(person(f[0] if isinstance(f, tuple) else f, "you") for f in facts)) + ".") if en
+                       else "Mi ricordo anche che " + "; ".join(f[0].lower() + f[1:] for f in facts) + ".")
         return " ".join(out)

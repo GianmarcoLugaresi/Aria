@@ -47,8 +47,8 @@
 <body>
 <div class="wrap">
   <div class="top">
-    <div class="chip"><span class="dot" id="dot"></span><span id="label">Pronta</span><span class="muted-badge">mic silenziato</span></div>
-    <div class="hint"><kbd>⌥</kbd> <kbd>Spazio</kbd> per fermarla</div>
+    <div class="chip"><span class="dot" id="dot"></span><span id="label">Pronta</span><span class="muted-badge" id="mutedb">mic silenziato</span></div>
+    <div class="hint"><kbd>⌥</kbd> <kbd id="kspace">Spazio</kbd> <span id="khint">per fermarla</span></div>
   </div>
   <div class="stage"><canvas id="c"></canvas></div>
   <div class="cap">
@@ -60,12 +60,28 @@
 <script src="neural.js"></script>
 <script>
 /* Overlay di Aria. Si collega al backend (ws://127.0.0.1:8765): stato, livello voce, sottotitoli.
-   Parametri: ?demo=1 (stati finti) &card=1 (fondo scuro, per il browser) &ws=ws://... */
+   Parametri: ?demo=1 (stati finti) &card=1 (fondo scuro, per il browser) &ws=ws://... &lang=it|en (la lingua; l'app la imposta da sola e la cambia con ariaLang()) */
 const Q = new URLSearchParams(location.search);
 if (Q.get('card') === '1') document.body.classList.add('card');
 const DEMO = Q.get('demo') === '1';
 const DEMO_PROGRESS = Q.get('progress') === '1';
-const LABEL = {idle: 'Pronta', listening: 'Ti ascolto', thinking: 'Ci penso', speaking: 'Aria', error: 'Qualcosa non va'};
+const TXT = {
+  it: {label: {idle: 'Pronta', listening: 'Ti ascolto', thinking: 'Ci penso', speaking: 'Aria', error: 'Qualcosa non va'}, muted: 'mic silenziato', key: 'Spazio', hint: 'per fermarla',
+       done: 'Fatto', working: 'Ci sto lavorando', lines: ['Domani a Roma sarà coperto,', 'tra i nove e i diciannove gradi.', 'Una giacca leggera ti basterà.'], q: 'Che tempo fa domani?'},
+  en: {label: {idle: 'Ready', listening: 'Listening', thinking: 'Thinking', speaking: 'Aria', error: 'Something is wrong'}, muted: 'mic muted', key: 'Space', hint: 'to stop',
+       done: 'Done', working: 'Working on it', lines: ['Tomorrow in Rome it will be overcast,', 'between nine and nineteen degrees.', 'A light jacket will be enough.'], q: "What's the weather tomorrow?"},
+};
+let LANG = ((Q.get('lang') || window.ARIA_LANG || 'it') + '').slice(0, 2) === 'en' ? 'en' : 'it';
+let LABEL = TXT[LANG].label;
+function ariaLang(c) {                                                       // l'app cambia la lingua senza ricaricare la pagina
+  LANG = (c + '').slice(0, 2) === 'en' ? 'en' : 'it'; LABEL = TXT[LANG].label;
+  document.documentElement.lang = LANG;
+  document.getElementById('mutedb').textContent = TXT[LANG].muted;
+  document.getElementById('kspace').textContent = TXT[LANG].key;
+  document.getElementById('khint').textContent = TXT[LANG].hint;
+  if (typeof state !== 'undefined' && LABEL[state]) document.getElementById('label').textContent = LABEL[state];
+}
+window.ariaLang = ariaLang;
 const DOT = {idle: '#b0beff', listening: '#68e0ff', thinking: '#c89cff', speaking: '#ffa8d0', error: '#ff7660'};
 const brain = new NeuralBrain(document.getElementById('c'), {nodes: 20});
 const you = document.getElementById('you'), aria = document.getElementById('aria');
@@ -117,13 +133,13 @@ function progress(m) {
   if (m.active === false) {                                      // finito: la barra arriva in fondo, poi sparisce
     if (!P.on) return;
     P.on = false; P.ind = false; P.from = P.until = 1; P.t0 = performance.now(); track.classList.remove('ind');
-    document.getElementById('plabel').textContent = 'Fatto'; document.getElementById('ppct').textContent = '100%';
+    document.getElementById('plabel').textContent = TXT[LANG].done; document.getElementById('ppct').textContent = '100%';
     P.hide = setTimeout(() => { body.classList.remove('busy'); P.shown = 0; document.getElementById('pfill').style.width = '0'; }, 900);
     return;
   }
   if (!P.on) { P.shown = 0; document.getElementById('pfill').style.width = '0'; }
   P.on = true; P.seen = performance.now();
-  document.getElementById('plabel').textContent = m.label || 'Ci sto lavorando';
+  document.getElementById('plabel').textContent = m.label || TXT[LANG].working;
   P.ind = m.fraction === null || m.fraction === undefined;
   track.classList.toggle('ind', P.ind);
   document.getElementById('ppct').textContent = '';
@@ -151,10 +167,11 @@ function connect() {
 }
 connect();
 setState('idle');
+ariaLang(LANG);
 
 /* ---------- demo ---------- */
 const CYCLE = [['idle', 2.5], ['listening', 4.5], ['thinking', 2.4], ['speaking', 9]];
-const LINES = ['Domani a Roma sarà coperto,', 'tra i nove e i diciannove gradi.', 'Una giacca leggera ti basterà.'];
+const LINES = TXT[LANG].lines;
 function syl(t, r, o) { const s = Math.pow(Math.abs(Math.sin(t * r + o)), 1.5), w = .5 + .5 * Math.sin(t * 1.3 + o * 2); return Math.min(1, s * (w > .25 ? 1 : .12) * (.65 + .35 * Math.sin(t * .7 + o))); }
 let demoIdx = -1, demoT0 = 0, lineIdx = 0;
 function demo(t) {
@@ -162,7 +179,7 @@ function demo(t) {
   let acc = 0, idx = 0; for (let i = 0; i < CYCLE.length; i++) { acc += CYCLE[i][1]; if (x < acc) { idx = i; break; } }
   if (idx !== demoIdx) {
     demoIdx = idx; demoT0 = t; lineIdx = 0; setState(CYCLE[idx][0]);
-    if (CYCLE[idx][0] === 'thinking') handle({type: 'transcript', role: 'user', text: 'Che tempo fa domani?'});
+    if (CYCLE[idx][0] === 'thinking') handle({type: 'transcript', role: 'user', text: TXT[LANG].q});
   }
   const s = state, lv = s === 'idle' ? 0 : s === 'listening' ? syl(t, 5.5, 0) : s === 'thinking' ? 0 : syl(t, 6.2, 1.7) * (((t - demoT0) % 3.2) > 2.7 ? 0 : 1);   // pause tra le frasi
   brain.setLevel(lv);

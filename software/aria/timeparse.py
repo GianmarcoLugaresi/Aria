@@ -10,6 +10,8 @@ import datetime as dt
 import re
 from dataclasses import dataclass
 
+from . import i18n
+
 _ACCENTS = str.maketrans("àáâäèéêëìíîïòóôöùúûüñç’'", "aaaaeeeeiiiioooouuuunc  ")
 GIORNI = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"]
 MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"]
@@ -78,6 +80,9 @@ def _hour_with_daypart(h: int, part: str | None) -> int:
 
 
 def parse_when(raw: str, now: dt.datetime, default_hour: int = 9) -> When | None:
+    if i18n.is_en():
+        from . import timeparse_en
+        return timeparse_en.parse_when(raw, now, default_hour)
     f = fold(raw)
     spans: list[tuple[int, int]] = []
 
@@ -235,6 +240,9 @@ def parse_when(raw: str, now: dt.datetime, default_hour: int = 9) -> When | None
 
 def say_when(when: dt.datetime, has_time: bool, now: dt.datetime) -> str:
     """«domani alle nove e mezza», «lunedì alle quindici», «oggi»: come si dice a voce (numeri in lettere)."""
+    if i18n.is_en():
+        from . import speech_en
+        return speech_en.say_when(when, has_time, now)
     from .tools import words_it
     delta = (when.date() - now.date()).days
     if delta == 0:

@@ -7,9 +7,10 @@ from typing import Any
 
 DEFAULTS: dict[str, Any] = {
     "name": "Aria",
-    "language": "it",
+    "language": None,                    # None = lo decidono le Impostazioni, poi la lingua del sistema (vedi i18n.py): «it» o «en»
     "location": {"city": "Roma", "lat": 41.9028, "lon": 12.4964},   # per meteo e ora locale: cambia!
     "persona_file": "../anima/persona_compatta.md",
+    "units": "auto",                     # auto | metric | imperial: gradi Celsius o Fahrenheit nel meteo (in inglese: lo decide il Mac, o la regione)
     "data_dir": "~/.aria",
     "wake": {
         "phrase": "hey aria",
@@ -76,13 +77,20 @@ def deep_merge(base: dict, over: dict) -> dict:
 def load(path: str | None = None, settings: bool = True) -> dict:
     """settings=True: sopra config.yaml applica le scelte delle Impostazioni (settings.json: versione e chatbot, vedi profiles.py)."""
     cfg = copy.deepcopy(DEFAULTS)
+    saved: dict = {}
     if path:
         import yaml
         with open(path, "r", encoding="utf-8") as f:
             cfg = deep_merge(cfg, yaml.safe_load(f) or {})
         if settings:
             from .profiles import apply_settings, load_settings
-            cfg = apply_settings(cfg, load_settings(path))
+            saved = load_settings(path)
+            cfg = apply_settings(cfg, saved)
+    if settings:
+        from . import i18n                                                  # la lingua: Impostazioni > config.yaml > sistema; vale per tutto il programma
+        lang = i18n.resolve(saved.get("language"), cfg.get("language"))
+        i18n.adapt_config(cfg, lang)
+        i18n.set_language(lang)
     if path:
         cfg["_config_path"] = os.path.abspath(path)                 # le Impostazioni (es. la cartella di Aria) si rileggono da qui senza riavviare
         for b in cfg.get("brains") or []:

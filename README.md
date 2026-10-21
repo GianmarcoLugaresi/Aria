@@ -1,50 +1,45 @@
 # Aria
 
-Assistente vocale da scrivania, in italiano, che gira tutto sul tuo computer: niente abbonamenti, niente account, niente audio inviato a nessuno.
+A voice assistant for macOS that runs entirely on your Mac and speaks Italian and English (you pick in Settings). Wake word, speech recognition, a small language model and speech synthesis all run on Apple silicon; no account, no cloud, no audio sent anywhere.
 
-Dici «Hey Aria» (o premi ⌥ Spazio), le parli come a una persona e risponde a voce. Sa chiacchierare, dire l'ora e il meteo, fare calcoli e timer, cercare sul web, ricordarsi di te, scrivere e leggere file in una cartella tua e, se glielo permetti, aprire app, mettere musica, creare promemoria ed eventi o guardare lo schermo.
+[![Release](https://img.shields.io/github/v/release/GianmarcoLugaresi/Aria?display_name=tag)](https://github.com/GianmarcoLugaresi/Aria/releases)
+[![License: MIT](https://img.shields.io/github/license/GianmarcoLugaresi/Aria)](LICENSE)
+![macOS 26+](https://img.shields.io/badge/macOS-26%2B-black)
+![Apple silicon](https://img.shields.io/badge/Apple%20silicon-MLX-blue)
+![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB)
+![Swift](https://img.shields.io/badge/Swift-app%20%2B%20helpers-F05138)
+![Tests](https://img.shields.io/badge/tests-1800%2B-brightgreen)
 
-[English version](README.en.md)
+<p align="center"><img src="docs/demo.gif" alt="Aria answering 'what time is it in Tokyo?': the overlay listens, thinks and shows the spoken answer word by word" width="520"></p>
+<p align="center"><sub>Generated from the real backend with a recorded phrase instead of a microphone: not a screen recording, so it has no macOS glass and does not show barge-in.</sub></p>
 
-## Come funziona
+[Versione italiana](README.it.md)
 
-```
-microfono ─► «Hey Aria» ─► rilevamento voce ─► riconoscimento (Whisper) ─► chatbot locale ─► voce (Pocket TTS) ─► altoparlanti
-                                                         │                     ▲
-                                                         └─► strumenti: ora, meteo, timer, calcoli, ricerca, file, app…
-```
+## Why
 
-- Il **chatbot** è un modello piccolo (Gemma 3 4B) che gira sul tuo Mac con Apple MLX; il riconoscimento vocale è Whisper (o quello integrato di macOS, se lo scegli); la voce è Pocket TTS. I modelli si scaricano la prima volta (circa 3,5 GB) e si gestiscono dalle Impostazioni.
-- I modelli piccoli sbagliano facilmente, quindi Aria li guida: le richieste ovvie (ora, meteo, timer, calcoli, «ricordati che…») le riconosce il programma e non il chatbot; le risposte sono tenute corte e senza formule da assistente; ogni potere sul computer parte solo da una richiesta detta da te, mai da quello che scrive il modello.
-- Dopo ogni risposta resta in ascolto qualche secondo: puoi continuare a parlare senza richiamarla, e puoi interromperla.
+Local voice assistants are easy to demo and hard to live with. A 4-billion-parameter model on a laptop is fast enough to talk to, but it makes things up, drifts off instructions and cannot be trusted with a tool-calling interface. Aria is built around that instead of waiting for a bigger model:
 
-Più dettagli in [docs/come-funziona.md](docs/come-funziona.md).
+- **Rules first, model second.** Obvious requests (time, weather, timers, arithmetic, reminders, "remember that…") are recognised by rules in [`intent.py`](software/aria/intent.py) before the model sees the sentence, and the tool runs immediately. `"what's fifteen times eighteen"` (or `"quanto fa quindici per diciotto"`) becomes `CALCOLA(15*18)` without a single token generated.
+- **The model cannot act on your computer.** Reminders, calendar, music, apps, Shortcuts and screen features start only from a request recognised in *your* sentence. If the model writes a tool call for one of them it is refused and logged. Every power has its own switch in Settings.
+- **The output is cleaned before it is spoken.** No "Certainly!", no invented personal experiences, no markdown, no foreign-language filler; [`speech.py`](software/aria/speech.py) and [`speech_en.py`](software/aria/speech_en.py) rewrite what is *read* into what is *said* ("18°C" becomes "eighteen degrees Celsius", or "diciotto gradi" in Italian).
+- **Two languages, one switch.** Italian came first and is the better tested; English has its own twin of every language-dependent module (`intent_en.py`, `timeparse_en.py`, `dialog_en.py`…), its own persona prompt and an English voice. Settings ▸ Language changes the app's text, what Aria understands and how she speaks, and restarts her. The wake phrase tolerates mispronunciations ("ehi aria", "hey area").
 
-## Cosa serve
+## Quickstart
 
-- **Mac con chip Apple** (M1 o successivi), 16 GB di RAM consigliati.
-- **macOS 26 o successivo**: l'app usa il vetro Liquid Glass e il riconoscimento vocale integrato di macOS 26. Su versioni precedenti non si apre.
-- Circa 7 GB liberi su disco (l'app pesa 1,6 GB una volta decompressa, i modelli altri 3,5 GB).
-- Gli strumenti di Xcode da riga di comando (`xcode-select --install`) **solo se la compili tu** dai sorgenti.
+Requires an Apple silicon Mac with macOS 26 or later (16 GB RAM recommended) and about 7 GB of free disk space.
 
-Su **Windows** esiste una versione sperimentale (vedi sotto). Linux e Intel Mac non sono supportati dall'app, ma il «cervello» Python si può usare da terminale.
+**Download the app** (no toolchain needed):
 
-## Installare
-
-### Scaricando l'app (il modo più semplice)
-
-1. Dalla pagina delle [Release](https://github.com/GianmarcoLugaresi/Aria/releases) scarica `Aria-0.3.1-macos-arm64.zip` (circa 0,5 GB) e decomprimilo: dentro c'è `Aria.app`, con Python e tutte le librerie già dentro.
-2. Trascina `Aria.app` nella cartella **Applicazioni**.
-3. L'app non è firmata con un certificato Apple a pagamento (non è «notarizzata»), quindi la prima volta macOS non la apre. Dal Terminale, una volta sola:
+1. Download `Aria-0.4.0-macos-arm64.zip` from [Releases](https://github.com/GianmarcoLugaresi/Aria/releases), unzip it and move `Aria.app` to `/Applications`.
+2. The app is not notarized, so macOS blocks it the first time. Once:
 
    ```bash
    xattr -dr com.apple.quarantine /Applications/Aria.app
    ```
 
-   (oppure: prova ad aprirla, poi Impostazioni di Sistema ▸ Privacy e sicurezza ▸ **Apri comunque**).
-4. Aprila. Alla prima apertura scarica i modelli (circa 3,5 GB: nel menu in alto compare «Primo avvio: sto scaricando i modelli…») e macOS chiede il permesso per il microfono: concedilo. Quando il menu dice che è pronta, di' «Hey Aria».
+3. Open it. The first launch downloads the models (about 3.5 GB) and asks for microphone access. When the menu bar icon says it is ready, say **"Hey Aria"** or press **⌥ Space**. Aria starts in your Mac's language (Italian if the Mac is in Italian, English otherwise); change it any time in **Settings ▸ Language**.
 
-### Compilandola tu dai sorgenti
+**Or build it from source** (needs the Xcode command line tools):
 
 ```bash
 git clone https://github.com/GianmarcoLugaresi/Aria.git
@@ -53,65 +48,67 @@ cd Aria
 open ~/Applications/Aria.app
 ```
 
-Lo script crea un ambiente Python 3.12 nativo in `~/Library/Application Support/Aria`, installa le librerie, compila l'app, crea la configurazione (`config.yaml`) e il carattere (`persona.md`) e scarica i modelli. Si può rilanciare per aggiornare senza perdere la configurazione.
-
-Per togliere tutto: `./app/uninstall.sh` (o, per l'app scaricata, vedi [docs/installazione.md](docs/installazione.md)). Altre istruzioni e i permessi facoltativi (schermo, Accessibilità, Automazione) sono nello stesso file.
-
-## Usarla
-
-| | |
-|---|---|
-| Svegliarla | «Hey Aria», anche tutto d'un fiato («Hey Aria, che tempo fa domani?»), oppure **⌥ Spazio** |
-| Fermarla mentre parla | ⌥ Spazio di nuovo, oppure di' «basta» o «aspetta» |
-| Cambiare voce, silenziare il microfono, avviarla all'accesso | menu dell'icona nella barra dei menu |
-| Scegliere modelli e poteri | menu ▸ **Impostazioni…** |
-| Capire cosa succede | menu ▸ **Mostra i log** |
-
-Qualche frase: «che ore sono a Tokyo?», «mettimi un timer di dieci minuti», «scrivimi una poesia per mia madre» (la salva nella cartella che hai scelto), «ricordami domani alle nove di chiamare Marco», «secondo te meglio il mare o la montagna?», «dov'è il pulsante Esporta?».
-
-## Privacy
-
-Audio, trascrizioni, memoria e modelli restano sul tuo computer. Si esce in rete solo per: i modelli (Hugging Face, la prima volta), il meteo (Open-Meteo: la città), Wikipedia e la ricerca web quando chiedi fatti che cambiano (il testo della domanda), le pagine che legge per scrivere un documento sui fatti. L'elenco completo, cosa viene salvato su disco e come cancellarlo sono in [docs/privacy.md](docs/privacy.md).
-
-I poteri sul Mac (promemoria, calendario, musica, app, Scorciatoie, schermo) si accendono e spengono uno per uno dalle Impostazioni; quelli che guardano lo schermo sono spenti di fabbrica.
-
-## Windows (sperimentale)
-
-In [windows/](windows/) c'è una versione per Windows 10/11: stessa schermata e stesso cervello, con chatbot in Ollama e Whisper con faster-whisper. È stata provata solo in parte e senza un PC Windows vero: leggi lo [stato onesto](windows/README.md) prima di installarla.
-
-## L'oggetto fisico
-
-Il progetto nasce come una sfera trasparente da scrivania con una linea di luce dentro (display, specchio semiriflettente, Raspberry Pi 5, microfoni con cancellazione d'eco). Il progetto meccanico, l'elenco dei pezzi, i file da stampare e un simulatore dell'ottica sono in [hardware/](hardware/). **Non è stato costruito**: è un progetto di cui l'app per Mac è la parte funzionante.
-
-## Com'è fatto il repository
-
-```
-app/         l'app per Mac in Swift: barra dei menu, scorciatoia, overlay, impostazioni, installer e script che crea l'app scaricabile
-software/    il «cervello» in Python (pacchetto aria): conversazione, intenzioni, strumenti, memoria; test e script
-anima/       il carattere di Aria (persona_compatta.md per i modelli piccoli, persona.md esteso)
-windows/     l'involucro per Windows e il suo installer
-hardware/    l'oggetto fisico: CAD parametrico, STL, simulatore ottico, pagina per il display
-docs/        documentazione
-```
-
-## Sviluppo e test
+**Run the Python side on its own** (no audio, no microphone):
 
 ```bash
 cd software
 python -m pip install -e ".[test]"
-python -m pytest -q          # oltre 1500 prove, senza audio né modelli veri
+python -m pytest -q                                          # 1800+ tests, no audio or real models needed
+python -m aria.main --config config.example.yaml --text      # text chat; needs a reachable chatbot, see the config
 ```
 
-I test usano un chatbot e una voce finti. `scripts/humanness.py` fa recitare ad Aria conversazioni di prova con il chatbot vero e misura i difetti tipici dei modelli piccoli (risposte lunghe, domanda in fondo a ogni frase, formule da psicologo…). Vedi [docs/sviluppo.md](docs/sviluppo.md).
+Details, permissions and uninstall: [docs/installazione.md](docs/installazione.md) (Italian).
 
-## Limiti noti
+## Key features
 
-- È sviluppata e provata su un solo Mac (M2 Pro, 16 GB, macOS 26). Altre configurazioni possono dare sorprese.
-- Un chatbot da 4 miliardi di parametri resta piccolo: ogni tanto scrive una frase strana, e i testi che produce vanno riletti prima di usarli. Un modello più grande (nelle Impostazioni) risponde meglio ma usa molta più memoria.
-- Con le casse del Mac il microfono sente anche Aria: l'interruzione a voce usa il filtro eco di macOS e funziona meglio con le cuffie.
-- Il riconoscimento di «Hey Aria» può sbagliare in ambienti rumorosi. La scorciatoia ⌥ Spazio può essere già usata da un'altra app.
-- Solo italiano.
+- **Wake word without training a model.** A light voice-activity detector (Silero, single thread) listens; when it hears speech, Whisper transcribes it and looks for "hey aria". `Hey Aria, what's the weather tomorrow?` in one breath works. Global hotkey: ⌥ Space.
+- **Barge-in with the speakers on.** The mic goes through macOS Voice Processing ([`aria_vpmic.swift`](software/helpers/aria_vpmic.swift)); while Aria talks, the last second and a half of audio is transcribed and compared with the words Aria is saying: those are echo and are ignored, "stop" or "wait" ("basta", "aspetta" in Italian) stops it ([`bargein.py`](software/aria/bargein.py)).
+- **Everyday tools.** Time and date (also in other cities), weather (Open-Meteo), timers, arithmetic and unit conversion, Wikipedia, web search (`ddgs` or your own SearXNG). Memory of facts about you in a local SQLite file.
+- **Files in one folder only.** It writes `.md` and `.txt` and reads text, CSV, PDF and Word, inside a single folder you choose. No hidden files, no deletion, no overwrite, 120 KB per file ([`workspace.py`](software/aria/workspace.py)).
+- **Mac powers, one switch each.** Reminders, Calendar, Music and volume, open apps and sites, Shortcuts (with a confirmation step). Screen reading (Vision OCR, or a vision model) and pointing at a button (Accessibility plus a click-through overlay) exist but screen reading is off by default.
+- **Italian and English.** Pick the language in Settings; the speech recogniser (Whisper, or the macOS recogniser with the matching locale), the voice (Pocket TTS, English weights downloaded the first time, about 0.2 GB), the persona, the date and number parsing and every spoken answer follow it. Imperial units when the Mac (or the Windows region) uses them.
+- **Settings window.** Light, Medium and Heavy profiles, model manager (download and remove models), Ollama or any OpenAI-compatible server as an alternative to the built-in MLX chatbot.
+- **Built for being left on.** Single-thread idle VAD, microphone closed when the display is asleep on battery (`audio.sleep_on_battery`), watchdog with backoff for the audio device.
+- **Optional natural voice** (Qwen3-TTS on MLX), 25 Pocket TTS voices otherwise, system `say` as a no-download fallback.
+- **Windows port (experimental).** Tray icon, hotkey, same Python backend with Ollama and faster-whisper, in Italian and English like the Mac app (Language in the tray menu, bilingual installer). It has never been run on a real Windows machine, see [windows/README.md](windows/README.md).
 
-## Licenza e modelli
+## How it works
 
-Il codice è sotto [licenza MIT](LICENSE). I modelli scaricati hanno licenze proprie (Gemma ha le sue condizioni d'uso, Pocket TTS è CC-BY-4.0, Qwen3-TTS è Apache-2.0): l'elenco è in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+```
+mic ─► VAD ─► Whisper ("hey aria") ─► VAD ends turn ─► intent rules ──► tool ─┐
+                                                          │ no match          │
+                                                          ▼                   ▼
+                                       Gemma 3 4B (MLX) + per-turn style hints ─► cleanup ─► Pocket TTS ─► speaker
+```
+
+The chatbot is `mlx-community/gemma-3-text-4b-it-4bit`, recognition is `whisper-large-v3-turbo-q4` on MLX (or the macOS 26 built-in speech recogniser), the voice is Pocket TTS. Per-turn style hints ([`style.py`](software/aria/style.py), [`rhythm.py`](software/aria/rhythm.py)) pick a move (an opinion, a layered explanation, a question about one detail), a word budget, and never two questions in a row. The model does not use function calling: when it needs data it writes a line such as `[[METEO: Roma domani]]`, which Aria runs and feeds back. More in [docs/come-funziona.md](docs/come-funziona.md).
+
+## Limitations
+
+- **English is newer than Italian.** The English rules cover the core tools (time, date, weather, timers, arithmetic, reminders, calendar, music and volume, apps, lists, notes, files, screen); anything else goes to the model. It was checked with unit tests and a round trip through real Whisper with the macOS system voice (9 of 9 phrases), not with many real speakers or accents. The natural voice (Qwen3-TTS) is Italian only, translations into other languages are read with the English voice, and the Raspberry Pi / Piper configs under `software/` still ship an Italian voice (the language switch is for the Mac app and the Windows build, which use Pocket TTS).
+- **Apple silicon and macOS 26+.** The app uses Liquid Glass and the macOS 26 speech recogniser; MLX does not run elsewhere.
+- **Tested on one Mac** (M2 Pro, 16 GB). Other setups may surprise you.
+- **A 4B model is small.** It still says odd things now and then; text it writes for you needs rereading. A larger model in Settings answers better and uses much more memory.
+- **The intent rules are regular expressions.** They score 195/195 on `tests/intent_corpus.py` and 190/194 on `tests/intent_corpus2.py` (`python scripts/eval_intents2.py`), but those sets were written by the author, so expect lower numbers on real speech.
+- **Not notarized.** You have to remove the quarantine flag by hand (see Quickstart). Every new download is a "new app" to macOS and optional permissions (screen, Accessibility) must be granted again.
+- Wake-phrase recognition can fail in a noisy room. With speakers, interruption by voice works better with headphones.
+
+## Contributing
+
+Issues and pull requests are welcome, in English or Italian. Start from the issues labelled [good first issue](https://github.com/GianmarcoLugaresi/Aria/labels/good%20first%20issue).
+
+```bash
+cd software
+python -m pip install -e ".[test]"
+python -m pytest -q
+```
+
+Ground rules:
+
+- The model must never be able to trigger an action. A new power needs a recogniser in `intent.py`, a switch in Settings and a test where the model tries to call it by itself.
+- New phrasings go into `software/tests/intent_corpus*.py`; `python scripts/eval_intents2.py` prints what is still misunderstood. See [docs/sviluppo.md](docs/sviluppo.md) (Italian).
+- User-facing strings exist in both languages (`i18n.pick(italian, english)`, or the `_en` twin module); new Italian phrasings go to `intent_corpus*.py`, new English ones to `tests/test_intent_en.py`. Code comments and test names are in Italian, identifiers in English.
+
+## License
+
+Code: [MIT](LICENSE). Downloaded models keep their own licenses (Gemma has its own terms of use); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

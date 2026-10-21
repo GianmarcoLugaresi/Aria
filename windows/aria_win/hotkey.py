@@ -4,6 +4,8 @@ from __future__ import annotations
 import sys
 import threading
 
+from .l10n import tr
+
 MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN, MOD_NOREPEAT = 0x1, 0x2, 0x4, 0x8, 0x4000
 WM_HOTKEY, WM_QUIT = 0x0312, 0x0012
 _MODS = {"alt": MOD_ALT, "ctrl": MOD_CONTROL, "control": MOD_CONTROL, "shift": MOD_SHIFT, "win": MOD_WIN, "super": MOD_WIN}
@@ -14,11 +16,11 @@ def parse(spec: str) -> tuple[int, int]:
     """«Ctrl+Alt+Spazio» -> (modificatori, codice tasto virtuale). Solleva ValueError se non si capisce."""
     parts = [p.strip().lower() for p in spec.replace(" ", "").split("+") if p.strip()]
     if len(parts) < 2:
-        raise ValueError(f"Scorciatoia non valida: {spec!r} (serve almeno un modificatore e un tasto)")
+        raise ValueError(tr(f"Scorciatoia non valida: {spec!r} (serve almeno un modificatore e un tasto)", f"Invalid shortcut: {spec!r} (it needs at least one modifier and one key)"))
     mods, key = 0, parts[-1]
     for p in parts[:-1]:
         if p not in _MODS:
-            raise ValueError(f"Modificatore sconosciuto: {p!r}")
+            raise ValueError(tr(f"Modificatore sconosciuto: {p!r}", f"Unknown modifier: {p!r}"))
         mods |= _MODS[p]
     if key in _KEYS:
         vk = _KEYS[key]
@@ -27,7 +29,7 @@ def parse(spec: str) -> tuple[int, int]:
     elif key.startswith("f") and key[1:].isdigit() and 1 <= int(key[1:]) <= 24:
         vk = 0x6F + int(key[1:])
     else:
-        raise ValueError(f"Tasto sconosciuto: {key!r}")
+        raise ValueError(tr(f"Tasto sconosciuto: {key!r}", f"Unknown key: {key!r}"))
     return mods, vk
 
 

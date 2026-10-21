@@ -17,7 +17,7 @@ Le prove che usano i programmi di supporto di macOS o percorsi POSIX si saltano 
 
 Un modulo per argomento (mappa in [come-funziona.md](come-funziona.md)). Alcune convenzioni:
 
-- **Il linguaggio è l'italiano**: nomi dei test, commenti, messaggi, regole di riconoscimento delle richieste. I nomi degli oggetti nel codice sono in inglese.
+- **Commenti e nomi dei test sono in italiano, i nomi degli oggetti nel codice in inglese.** I testi che l'utente legge o sente esistono in italiano e in inglese (vedi «Le due lingue» sotto).
 - **Il modello non decide cosa eseguire**: le richieste d'azione le riconosce `intent.py` con regole; i poteri sul computer (`powers.py`, `filetools.py`, `screen.py`) hanno controlli propri e il chatbot non può lanciarli. Ogni nuova azione va gestita così e coperta da una prova che verifichi anche il caso in cui il modello provi a lanciarla da solo.
 - **I testi detti a voce non finiscono mai dentro un comando**: si passano come argomenti separati (`macos.py` per AppleScript, `winos.py` per Windows).
 - **Ogni abbellimento «da persona» si può spegnere** da `config.yaml` (`human.*`).
@@ -28,6 +28,16 @@ Un modulo per argomento (mappa in [come-funziona.md](come-funziona.md)). Alcune 
 1. Le regole sono in `aria/intent.py`; le forme di cortesia («potresti…», «mi dici…») le toglie `phrasing.canonical`.
 2. Aggiungi la frase a uno dei corpora in `tests/intent_corpus*.py` (frase, strumento atteso, parti dell'argomento): sono prove parametrizzate che scoprono subito le regressioni.
 3. `scripts/eval_intents.py` e `eval_intents2.py` stampano le frasi sbagliate di due liste di richieste «dette come le direbbe una persona».
+
+## Le due lingue
+
+La lingua in uso è una sola, in `i18n.py` (`i18n.is_en()`, `i18n.pick(italiano, inglese)`). Come si aggiunge o si cambia una cosa:
+
+- **Una frase che Aria dice** (risposta di uno strumento, errore, domanda): `i18n.pick("Fatto.", "Done.")` nel punto in cui nasce. Niente frasi in inglese dentro i moduli italiani sparse a caso: o `pick`, o una tabella nel modulo gemello (`dialog_en.py`, `ui_en.py`).
+- **Una richiesta da riconoscere in inglese**: `intent_en.py` (stessa interfaccia di `intent.py`, stessi strumenti e stessi formati di argomento). `intent.py` in fondo ha le funzioni di smistamento che scelgono la serie giusta; le regole italiane non si toccano.
+- **Ordine e date**: `timeparse_en.py` (a voce: «tomorrow at nine», «in half an hour», «next Friday»), numeri e orari detti in `speech_en.py`.
+- **Prove**: `tests/test_intent_en.py` (frasi → strumento, e frasi di conversazione che NON devono far partire niente), `test_powers_en.py`, `test_filetools_en.py`, `test_screen_en.py`, `test_flow_en.py` (la conversazione da capo a fondo), `test_language_setting.py` (Impostazioni). In ogni prova inglese si usa la fixture `english` di `conftest.py`; le prove di fabbrica girano in italiano qualunque sia la lingua del Mac che le esegue.
+- **Impostazioni**: i testi inglesi di versioni, modelli e funzioni stanno in `ui_en.py` (una prova controlla che non ne manchi nessuno); le scritte Swift usano `tr("italiano", "english")`.
 
 ## Misurare lo stile delle risposte
 
@@ -59,4 +69,4 @@ All'avvio `Paths.swift` guarda se esiste `Resources/backend`: se c'è usa quello
 
 ## Windows
 
-`windows/` è l'involucro per Windows e `software/aria/winos.py` il corrispettivo di `macos.py`. Le chiamate a Windows sono dietro `sys.platform == "win32"` e dentro `try/except`: se una non funziona la funzione si degrada invece di rompersi. Vedi [windows/README.md](../windows/README.md) per lo stato.
+`windows/` è l'involucro per Windows e `software/aria/winos.py` il corrispettivo di `macos.py`. Le chiamate a Windows sono dietro `sys.platform == "win32"` e dentro `try/except`: se una non funziona la funzione si degrada invece di rompersi. L'involucro ha la propria lingua (`windows/aria_win/l10n.py`: stessa scelta del cervello, `settings.json` accanto a `config.yaml`) e non importa il pacchetto `aria`; le sue prove sono in `tests/test_windows_shell.py` e `tests/test_windows_en.py`. Vedi [windows/README.it.md](../windows/README.it.md) per lo stato.

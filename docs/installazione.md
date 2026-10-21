@@ -9,13 +9,17 @@ Ci sono due strade: **scaricare l'app già pronta** dalle Release (la più sempl
 - Circa 7 GB liberi su disco (app, modelli) e una connessione internet per il primo avvio.
 - Solo per compilare dai sorgenti: gli strumenti di Xcode da riga di comando (`xcode-select --install`), che compilano l'app e i programmi di supporto in Swift.
 
+## Lingua
+
+Al primo avvio Aria parla la lingua del Mac (italiano se il Mac è in italiano, altrimenti inglese) e scarica i modelli di quella lingua. Si cambia in qualunque momento da Impostazioni ▸ *Lingua*: l'app si riavvia nella lingua nuova; la prima volta che passi all'inglese scarica la voce inglese (circa 0,2 GB, serve la rete). Il riconoscimento vocale integrato di macOS 26 scarica per conto suo la lingua che gli serve.
+
 ## Scaricare l'app
 
 1. Dalle [Release](https://github.com/GianmarcoLugaresi/Aria/releases) scarica `Aria-<versione>-macos-arm64.zip` e, se vuoi controllare che il file sia integro, anche `…zip.sha256`:
 
    ```bash
    cd ~/Downloads
-   shasum -a 256 -c Aria-0.3.1-macos-arm64.zip.sha256
+   shasum -a 256 -c Aria-0.4.0-macos-arm64.zip.sha256
    ```
 
 2. Decomprimi (doppio clic) e trascina `Aria.app` in **Applicazioni**. L'app pesa circa 1,6 GB perché contiene Python e le librerie (MLX, PyTorch per la voce, Whisper…): non c'è altro da installare.

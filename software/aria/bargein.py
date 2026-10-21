@@ -5,25 +5,30 @@ riconoscere (riconoscimento integrato del Mac, 0,1 s) l'ultimo secondo e mezzo d
 parole che Aria sta dicendo (le conosce: e' il testo della sua risposta) e si ignora; se compaiono parole sue diverse («basta», «aspetta», «stop»…), e' l'utente."""
 from __future__ import annotations
 
+from . import i18n
 from .textutil import normalize
 from .voicecheck import _near
 
 STOP_WORDS = {"basta", "stop", "fermati", "ferma", "fermo", "zitta", "zitto", "silenzio", "aspetta", "aspettami", "aspetti", "pausa", "interrompi", "smettila", "taci", "calma", "attimo", "momento", "aria"}
 FILLERS = {"ah", "eh", "ehi", "mh", "mmh", "oh", "boh", "uhm", "ehm", "eeh", "mm"}
+STOP_WORDS_EN = {"stop", "wait", "hold", "pause", "enough", "quiet", "silence", "shush", "hush", "moment", "second", "sec", "cancel", "interrupt", "aria", "hang", "easy", "whoa", "sorry", "excuse"}
+FILLERS_EN = {"ah", "uh", "um", "umm", "uhm", "hmm", "hm", "mm", "mhm", "erm", "er", "oh", "huh", "eh", "ooh", "aah"}
 
 
 def _decide(heard: str, expected: str, clean: bool) -> tuple[str | None, list[str], bool]:
     """(tipo, parole nuove, debole). `debole` = decisa con la regola larga del microfono pulito (una parola lunga o due parole qualsiasi): va confermata."""
     exp = [w for w in normalize(expected).split() if w]
     new, echoed = [], []
+    en = i18n.is_en()
+    fillers, stops = (FILLERS_EN, STOP_WORDS_EN) if en else (FILLERS, STOP_WORDS)
     for w in normalize(heard).split():
-        if not w or w in FILLERS:
+        if not w or w in fillers:
             continue
         if any(_near(w, e) for e in exp):
             echoed.append(w)
             continue                                                  # e' una parola che Aria sta dicendo: eco
         new.append(w)
-    if any(w in STOP_WORDS for w in new):
+    if any(w in stops for w in new):
         return "stop", new, False
     if len([w for w in new if len(w) >= 3]) >= 3:
         return "talk", new, False

@@ -1,79 +1,87 @@
-# Aria per Windows (sperimentale)
+# Aria for Windows (experimental)
 
-Aria su Windows 10/11: icona nella barra delle applicazioni, scorciatoia da tastiera, la stessa schermata con l'onda di sfere e lo stesso "cervello" Python dell'app per Mac (cartella `software/`).
+[Versione italiana](README.it.md)
 
-> **Stato onesto.** Questa versione è stata scritta **senza un PC Windows**. Cosa è stato verificato, e come:
-> - **Il cervello Python gira su Windows**: tutta la batteria di test (oltre 1500 prove: richieste, memoria, file, ritmo delle risposte, intenzioni…) è stata eseguita con un vero Python 3.12 per Windows dentro Wine, e passa (restano escluse solo le prove che usano programmi o percorsi del Mac). Da qui è uscito un difetto vero: su Windows mancano i dati dei fusi orari, e `tzdata` ora è tra le librerie.
-> - **Le chiamate a Windows funzionano** (provate nello stesso modo): scorciatoia con `RegisterHotKey`, voce nel registro per l'avvio automatico, una sola copia aperta, finestra che lascia passare i clic e non ruba il focus, controllo del processo padre, tasti multimediali, lettura del menu Start. Il vetro acrilico non si è potuto provare (Wine non lo ha).
-> - **Gli script PowerShell** hanno la sintassi controllata con il parser vero di PowerShell, ma non sono mai stati eseguiti.
-> - **Non è mai stato visto funzionare su Windows**: la schermata (WebView2), l'icona nella barra, il microfono e la voce, l'installazione completa. Aspettati qualche difetto al primo avvio e aprine uno nei problemi del progetto con il contenuto di `%LOCALAPPDATA%\Aria\Logs\app.log` e `backend.log`.
+Aria on Windows 10/11, in Italian and English (you pick in the tray icon menu): tray icon, keyboard shortcut, the same wave-of-spheres overlay and the same Python "brain" as the Mac app (the `software/` folder).
 
-L'app per Mac (Apple Silicon, con il Liquid Glass di macOS 26) è un'altra cosa e non cambia: qui sotto trovi cosa è uguale e cosa no.
+> **Honest status.** This version was written **without a Windows PC**. What has been checked, and how:
+> - **The Python brain runs on Windows**: the whole test suite (over 1500 tests at the time: requests, memory, files, answer rhythm, intents…) was run with a real Windows Python 3.12 inside Wine, and passed (only the tests that use Mac programs or paths are left out). It turned up one real bug: Windows has no time-zone data, so `tzdata` is now one of the libraries.
+> - **The Windows calls work** (checked the same way): the shortcut with `RegisterHotKey`, the autostart entry in the registry, a single running copy, a click-through window that does not steal focus, the parent-process check, media keys, reading the Start menu. The acrylic glass could not be tried (Wine does not have it).
+> - **English on Windows** (Language menu, texts, voices, overlay, installer) has automatic tests that run on Mac and Linux (`software/tests/test_windows_en.py`: the menu logic with the real `pystray`, the language switch with the real Python program, the overlay, the messages). Those new tests were not re-run under Wine, and **the two PowerShell scripts, rewritten in two languages, have not been run or fed to PowerShell**: they only have static checks (balanced quotes and brackets, no variable names that clash when case is ignored).
+> - **It has never been seen working on Windows**: the overlay (WebView2), the tray icon, the microphone and the voice, the complete installation. Expect a few defects on first launch and open an issue with the contents of `%LOCALAPPDATA%\Aria\Logs\app.log` and `backend.log`.
 
-## Cosa serve
+The Mac app (Apple silicon, with macOS 26's Liquid Glass) is a different thing and does not change: below you will find what is the same and what is not.
 
-- Windows 10 (1809 o successivo) o Windows 11, 64 bit.
-- Un microfono e delle casse. **Meglio le cuffie**: senza la cancellazione dell'eco di macOS, con le casse Aria può sentire la propria voce.
-- ~6 GB di spazio (ambiente Python, Whisper, voce, chatbot) e 8 GB di RAM (16 consigliati).
-- [Ollama](https://ollama.com) per il chatbot (l'installer lo installa con winget se vuoi) e il componente *WebView2 Runtime* di Microsoft per la schermata (c'è già in Windows 11).
-- Facoltativo ma consigliato: una scheda NVIDIA, per far girare Whisper sulla GPU (`-Gpu`).
+## What you need
 
-## Installare
+- Windows 10 (1809 or later) or Windows 11, 64-bit.
+- A microphone and speakers. **Headphones are better**: without macOS's echo cancellation, with speakers Aria can hear her own voice.
+- ~6 GB of disk (Python environment, Whisper, voice, chatbot) and 8 GB of RAM (16 recommended).
+- [Ollama](https://ollama.com) for the chatbot (the installer can install it with winget) and Microsoft's *WebView2 Runtime* for the overlay (Windows 11 already has it).
+- Optional but recommended: an NVIDIA card, to run Whisper on the GPU (`-Gpu`).
 
-Da PowerShell, nella cartella del progetto:
+## Install
+
+From PowerShell, in the project folder:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\windows\install.ps1            # con il processore
-powershell -ExecutionPolicy Bypass -File .\windows\install.ps1 -Gpu       # con una scheda NVIDIA (CUDA 12)
+powershell -ExecutionPolicy Bypass -File .\windows\install.ps1            # with the processor
+powershell -ExecutionPolicy Bypass -File .\windows\install.ps1 -Gpu       # with an NVIDIA card (CUDA 12)
+powershell -ExecutionPolicy Bypass -File .\windows\install.ps1 -Language en   # Aria and the installer in English (it, en or auto: like Windows)
 ```
 
-Lo script crea un ambiente Python 3.12 in `%LOCALAPPDATA%\Aria`, installa le librerie, copia il programma e crea `%APPDATA%\Aria\config.yaml` e `persona.md` (che puoi modificare). Poi aggiunge «Aria» al menu Start. Si può rilanciare per aggiornare senza perdere la configurazione. Altre opzioni: `-Modello qwen3:4b` (un altro chatbot di Ollama), `-Si` (nessuna domanda).
+The script creates a Python 3.12 environment in `%LOCALAPPDATA%\Aria`, installs the libraries, copies the program and creates `%APPDATA%\Aria\config.yaml` and `persona.md` (which you can edit). Then it adds "Aria" to the Start menu. You can run it again to update without losing your configuration. Other options: `-Model qwen3:4b` (another Ollama chatbot), `-Yes` (ask nothing), `-Language it|en|auto` (Aria's language and the installer's messages; by default it follows Windows). The same options in Italian: `-Modello`, `-Si`, `-Lingua`.
 
-Per toglierla: `.\windows\uninstall.ps1`.
+To remove it: `.\windows\uninstall.ps1`.
 
-## Usarla
+## Use
 
-| Cosa | Come |
+| What | How |
 |---|---|
-| Svegliarla | di' **«Hey Aria»** o premi **Ctrl + Alt + Spazio** (Alt + Spazio su Windows apre il menu della finestra, per questo è diversa dal Mac; cambia con la variabile `ARIA_HOTKEY`, ad esempio `Ctrl+Shift+A`) |
-| Fermarla mentre parla | la stessa scorciatoia, oppure il menu dell'icona |
-| Cambiare voce, silenziare il microfono, avviarla con Windows | menu dell'icona (accanto all'orologio; se non la vedi, è sotto la freccia ^) |
-| Scegliere la cartella dove legge e scrive i file | menu ▸ *Cartella di Aria…* |
-| Capire cosa succede | menu ▸ *Mostra i log* |
+| Wake her | say **"Hey Aria"** or press **Ctrl + Alt + Space** (Alt + Space opens the window menu on Windows, which is why it differs from the Mac; change it with the `ARIA_HOTKEY` variable, for example `Ctrl+Shift+A`) |
+| Stop her while she talks | the same shortcut, or the icon menu |
+| Change language (Automatic, Italiano, English) | icon menu ▸ *Language*: it changes the text of the menu and of the overlay, what Aria understands and how she speaks, and restarts the brain (a few seconds; switching to English downloads the English voice, about 0.2 GB) |
+| Change voice, mute the microphone, start with Windows | icon menu (next to the clock; if you cannot see it, it is under the ^ arrow); in English the list of voices is cut down to the ones that speak English |
+| Choose the folder where she reads and writes files | menu ▸ *Aria's folder…* |
+| Understand what is going on | menu ▸ *Show logs* |
 
-## Cosa è uguale al Mac e cosa no
+## What is the same as the Mac and what is not
 
-**Uguale** (è lo stesso codice): carattere e modo di rispondere, memoria, timer, calcoli, meteo, Wikipedia, ricerca sul web, file e documenti nella tua cartella, riconoscimento delle richieste, e la schermata con l'onda di sfere.
+**The same** (it is the same code): Italian and English (language choice, recognition, voice, the `persona.en.md` personality, rules, spoken texts, overlay), personality and way of answering, memory, timers, calculations, weather, Wikipedia, web search, files and documents in your folder, understanding requests, and the wave-of-spheres overlay.
 
-**Diverso, perché su Windows non esiste lo stesso pezzo:**
+**Different, because Windows has no equivalent:**
 
-| Mac (Apple Silicon) | Windows | Perché |
+| Mac (Apple silicon) | Windows | Why |
 |---|---|---|
-| Chatbot e Whisper su GPU Apple (MLX) | chatbot in **Ollama**, Whisper con **faster-whisper** (processore, o NVIDIA) | MLX gira solo sui chip Apple |
-| Riconoscimento vocale integrato di Apple | solo Whisper | è un'API di macOS |
-| Microfono con filtro eco (Voice Processing): si interrompe Aria parlando, anche con le casse | si ferma con la scorciatoia; con le cuffie si può attivare `barge_in: true` in `config.yaml` | Windows non offre lo stesso filtro eco |
-| Vetro «Liquid Glass» | vetro acrilico di Windows (o un fondo scuro se non disponibile) | è una funzione di macOS 26 |
-| Voci «naturali» (Qwen3-TTS) | voci di Pocket TTS | Qwen3-TTS qui usa MLX |
-| Leggere lo schermo, indicare un pulsante | non ancora | usano OCR, Accessibilità e Registrazione schermo di macOS |
-| Promemoria, Calendario, Scorciatoie, controllo di Musica | non ci sono | sono app e funzioni del Mac |
-| Aprire app e siti, volume, play/pausa/avanti/indietro | ci sono (menu Start, tasti multimediali; il volume preciso richiede il pacchetto `pycaw`) | |
+| Chatbot and Whisper on the Apple GPU (MLX) | chatbot in **Ollama**, Whisper with **faster-whisper** (processor, or NVIDIA) | MLX only runs on Apple chips |
+| Apple's built-in speech recogniser | Whisper only | it is a macOS API |
+| Microphone with echo filter (Voice Processing): you can interrupt Aria by speaking, even with speakers | stop with the shortcut; with headphones you can turn on `barge_in: true` in `config.yaml` | Windows has no equivalent echo filter |
+| "Liquid Glass" | Windows acrylic (or a dark background if unavailable) | it is a macOS 26 feature |
+| "Natural" voices (Qwen3-TTS, Italian only) | Pocket TTS voices | Qwen3-TTS uses MLX here |
+| Settings window (Light/Medium/Heavy versions, choosing and downloading models, feature switches, wake phrase) | none: edit `config.yaml`; language and voice from the icon menu | the window is written in SwiftUI |
+| Reading the screen, pointing at a button | not yet | they use macOS OCR, Accessibility and Screen Recording |
+| Reminders app ("remind me tomorrow at nine to call Mark") | Aria's own reminders: a timer at that exact time that says it aloud, saved on disk so it survives a restart (not in an app, not synced to a phone; "what are my reminders" lists them) | Windows has no scriptable Reminders app |
+| Calendar (adding and reading events), Shortcuts, controlling the Music app | not there (play/pause/next/previous work through the media keys) | they are Mac apps and features |
+| Questions about the computer (battery, Wi-Fi name, IP, free memory and disk, system version, uptime) | there, read from Windows | |
+| Opening apps and websites, volume, play/pause/next/previous | there (Start menu, media keys; precise volume needs the `pycaw` package) | |
 
-## Come è fatta
+## How it is made
 
 ```
 windows/
-  aria_win/        l'involucro: icona (pystray), schermata (pywebview + WebView2), scorciatoia (RegisterHotKey), avvio del backend, WebSocket
-  install.ps1      installazione      uninstall.ps1   disinstallazione
-  config.windows.yaml   configurazione di partenza
-  assets/aria.ico  l'icona
+  aria_win/        the shell: icon (pystray), overlay (pywebview + WebView2), shortcut (RegisterHotKey), backend launch, WebSocket, language (l10n.py)
+  install.ps1      installation      uninstall.ps1   uninstallation      (two languages)
+  config.windows.yaml   starting configuration
+  assets/aria.ico  the icon
 ```
 
-Il backend è `software/aria` (identico al Mac, con piccole varianti dietro `sys.platform`: `winos.py` per app/volume/musica, `power.py` per la batteria, `ollama.py` e `main.py` per i processi). La schermata è `app/Resources/overlay.html` + `neural.js`, uguali a quelle del Mac. L'involucro avvia il backend, ascolta lo stato dal WebSocket locale (`127.0.0.1:8765`) e mostra o nasconde la schermata.
+The backend is `software/aria` (identical to the Mac, with small variants behind `sys.platform`: `winos.py` for apps/volume/music, `power.py` for the battery, `ollama.py` and `main.py` for processes). The overlay is `app/Resources/overlay.html` + `neural.js`, the same as the Mac's. The shell starts the backend, listens to its state on the local WebSocket (`127.0.0.1:8765`) and shows or hides the overlay. The language is the same choice the brain reads (`settings.json` next to `config.yaml`, written by `python -m aria.models language set`), so the menu, the overlay and the brain always agree.
 
-## Problemi comuni
+## Common problems
 
-- **Non compare la schermata ma c'è l'icona**: manca WebView2 Runtime o `pywebview`; vedi `app.log`.
-- **Aria non ti sente**: Impostazioni di Windows ▸ Privacy e sicurezza ▸ Microfono ▸ «Consenti alle app desktop di accedere al microfono».
-- **«Ctrl+Alt+Spazio» non fa niente**: la usa un altro programma; imposta `ARIA_HOTKEY` (variabile d'ambiente utente) e riapri Aria.
-- **Risponde lentamente**: usa un chatbot più piccolo (`-Modello gemma3:1b`) o, con una NVIDIA, `-Gpu`.
-- **Windows Defender chiede conferma per `pythonw.exe`**: è l'ambiente Python di Aria; il programma non è firmato.
+- **The overlay does not appear but the icon is there**: WebView2 Runtime or `pywebview` is missing; see `app.log`.
+- **Aria cannot hear you**: Windows Settings ▸ Privacy & security ▸ Microphone ▸ "Let desktop apps access your microphone".
+- **The menu or the overlay are in the wrong language**: icon menu ▸ *Language*; "Automatic" follows Windows' display language.
+- **"Ctrl+Alt+Space" does nothing**: another program uses it; set `ARIA_HOTKEY` (a user environment variable) and reopen Aria.
+- **It answers slowly**: use a smaller chatbot (`-Model gemma3:1b`) or, with an NVIDIA card, `-Gpu`.
+- **Windows Defender asks to confirm `pythonw.exe`**: it is Aria's Python environment; the program is not signed.

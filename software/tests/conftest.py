@@ -14,6 +14,26 @@ def _isolated_home(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _italian_by_default(monkeypatch):
+    """Di fabbrica le prove girano in italiano, qualunque sia la lingua del Mac che le esegue; chi vuole l'inglese usa la fixture `english`."""
+    from aria import i18n
+    monkeypatch.setattr(i18n, "system_language", lambda: "it")
+    i18n.set_language("it")
+    yield
+    i18n.set_language("it")
+
+
+@pytest.fixture
+def english(monkeypatch):
+    """La lingua di Aria e' l'inglese: anche per chi rilegge la configurazione (load() la risolve dal sistema, che qui diventa «en»)."""
+    from aria import i18n
+    monkeypatch.setattr(i18n, "system_language", lambda: "en")
+    i18n.set_language("en")
+    yield
+    i18n.set_language("it")
+
+
+@pytest.fixture(autouse=True)
 def _no_variety(monkeypatch):
     import aria.textutil as T
     monkeypatch.setattr(T, "VARIETY", False)                # le conferme sono sempre la prima variante: i test confrontano frasi esatte

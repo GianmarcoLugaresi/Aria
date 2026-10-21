@@ -24,6 +24,7 @@ final class OverlayController {
         panel.alphaValue = 0
 
         let cfg = WKWebViewConfiguration()
+        cfg.userContentController.addUserScript(WKUserScript(source: "window.ARIA_LANG = '\(L10n.code)';", injectionTime: .atDocumentStart, forMainFrameOnly: true))      // la schermatina parte gia' nella lingua giusta
         web = WKWebView(frame: NSRect(origin: .zero, size: size), configuration: cfg)
         web.setValue(false, forKey: "drawsBackground")
         if #available(macOS 12.0, *) { web.underPageBackgroundColor = .clear }
@@ -49,6 +50,13 @@ final class OverlayController {
         loadPage()
     }
 
+    /// Cambia la lingua delle scritte della schermatina (senza ricaricarla).
+    func setLanguage(_ code: String) {
+        web.configuration.userContentController.removeAllUserScripts()
+        web.configuration.userContentController.addUserScript(WKUserScript(source: "window.ARIA_LANG = '\(code)';", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        web.evaluateJavaScript("window.ariaLang && window.ariaLang('\(code)')", completionHandler: nil)
+    }
+
     /// Solo per i test: salva il contenuto della pagina in un PNG.
     func snapshot(to path: String) {
         web.takeSnapshot(with: nil) { image, _ in
@@ -64,7 +72,7 @@ final class OverlayController {
         } else if let dev = ProcessInfo.processInfo.environment["ARIA_OVERLAY_URL"], let url = URL(string: dev) {
             web.load(URLRequest(url: url))
         } else {
-            Paths.log("overlay.html non trovato nel bundle")
+            Paths.log(tr("overlay.html non trovato nel bundle", "overlay.html not found in the bundle"))
         }
     }
 

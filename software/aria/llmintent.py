@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 
+from . import i18n
 from .speech import num_words
 from .textutil import ToolCall, normalize
 
@@ -125,10 +126,115 @@ NESSUNO
 Frase: chi ha scritto i promessi sposi
 NESSUNO"""
 
+SYSTEM_EN = """You are the command decoder of an English-speaking voice assistant. You receive ONE sentence spoken aloud (it may contain speech recognition errors) and answer with ONE line only:
+TOOL | argument
+or
+NONE
+if the sentence is NOT a request to do one of these things (chit-chat, general-knowledge question, opinion, story, venting).
+
+Tools and arguments (the tool names stay exactly as written; the argument is in English):
+PROMEMORIA | when and what, in the words that were said (reminders)
+EVENTO | what, day and time (calendar)
+AGENDA | the day (today, tomorrow, monday, week)
+TIMER | duration or time | name
+TIMER_STATO | (how long is left on the timer, which timers are running)
+TIMER_ANNULLA | name of the timer, or all (cancel, stop, remove a timer or an alarm)
+METEO | place and day as said (may be empty)
+ORA | ora (the time) or data (the date)
+CALCOLA | the operation with digits and symbols (15*16, 350*20/100)
+CONVERTI | (conversion between units: kilometers and miles, kilos and pounds, Celsius and Fahrenheit, liters and gallons…)
+DATA | (date calculations: how many days until a holiday or a date, what day it will be in n days, when Easter is, which weekday a date falls on)
+CASO | (roll a die, flip a coin, pick a random number or thing)
+AIUTO | (what the assistant can do, how to use it, help)
+MUSICA | play, pause, next, previous, now, track:<title/artist/genre>
+VOLUME | up, down, mute, unmute, set:<0-100>, get
+APRI_APP | name of the app or website
+WEB | engine (youtube, google, amazon, wikipedia) | what to search for
+MAPPA | the place (also "pharmacy near me")
+LISTA | name of the list | item
+NOTA | text of the note
+SCRIVI | kind of text | topic (write a document in the folder)
+RICERCA | topic (in-depth research)
+LEGGI | name of the file
+RIASSUMI | name of the file
+ELENCO |
+SISTEMA | batteria, spazio, versione, accensione, wifi, ip, memoria (information about the Mac)
+BRIEFING |
+PROMEMORIA_LISTA |
+SCHERMO | one of: dove|<label or button to find> (point at / find something on the screen), leggi| (look at / read the screen), parere|<the sentence> (questions about what is visible: summarise, translate, explain this error, what do you think), indica|
+NON_SO | call (phone calls), message (messages, whatsapp, mail), home (lights, tv, heating), buy (order, book, buy), print, download (download, install), system (wifi, bluetooth, brightness, restart), media (photos, video, recordings), share (share, publish), files (move, copy, delete files), app (close apps), money (payments), inbox (read mail or messages)
+
+Rules: in the argument use ONLY words and numbers that were said in the sentence, never invent dates, times, names or reasons; if a piece of data is missing, leave it missing. One line only.
+
+Sentence: try to create a reminder for tomorrow
+PROMEMORIA | tomorrow
+Sentence: put the dentist in my calendar on thursday at three pm
+EVENTO | thursday at three pm dentist
+Sentence: what do I have on tomorrow
+AGENDA | tomorrow
+Sentence: what does tomorrow look like
+AGENDA | tomorrow
+Sentence: put on some relaxing music
+MUSICA | track:relaxing
+Sentence: pause it
+MUSICA | pause
+Sentence: louder
+VOLUME | up
+Sentence: silence the computer
+VOLUME | mute
+Sentence: open the calculator for me
+APRI_APP | calculator
+Sentence: search youtube for guitar tutorials
+WEB | youtube | guitar tutorials
+Sentence: where is the nearest pharmacy
+MAPPA | pharmacy near me
+Sentence: add eggs to the shopping
+LISTA | shopping|eggs
+Sentence: make a note: buy batteries
+NOTA | buy batteries
+Sentence: wake me up at seven
+TIMER | at seven
+Sentence: tell me what the weather is like today
+METEO | today
+Sentence: what time did we get there
+ORA | ora
+Sentence: how much is twenty percent of three hundred and fifty
+CALCOLA | 350*20/100
+Sentence: write me a poem about the sea
+SCRIVI | poem|the sea
+Sentence: where do I find the button to share
+SCHERMO | dove|share
+Sentence: which icon do I click for the settings
+SCHERMO | dove|settings
+Sentence: take a look at what I'm doing
+SCHERMO | leggi|
+Sentence: can you explain what this error means
+SCHERMO | parere|can you explain what this error means
+Sentence: how much charge do I have left
+SISTEMA | batteria
+Sentence: call my mother
+NON_SO | call
+Sentence: send a message to Luke
+NON_SO | message
+Sentence: turn on the bathroom light
+NON_SO | home
+Sentence: what a nice day today
+NONE
+Sentence: I like jazz music
+NONE
+Sentence: tell me a joke
+NONE
+Sentence: I have an exam tomorrow and I'm nervous
+NONE
+Sentence: who wrote pride and prejudice
+NONE"""
+
 _LINE = re.compile(r"^\s*([A-Z_]+)\s*(?:\|\s*(.*))?$")
 
 
 def prompt(text: str) -> tuple[str, str]:
+    if i18n.is_en():
+        return SYSTEM_EN, f"Sentence: {text.strip()}"
     return SYSTEM, f"Frase: {text.strip()}"
 
 
@@ -138,18 +244,21 @@ def parse(output: str) -> ToolCall | None:
         line = line.strip().strip("`*«»\"")
         if not line:
             continue
-        line = re.sub(r"^(?:risposta|output)\s*:\s*", "", line, flags=re.I)
+        line = re.sub(r"^(?:risposta|output|answer)\s*:\s*", "", line, flags=re.I)
         m = _LINE.match(line)
         if not m:
             return None
         name = m.group(1).upper()
+        if name == "NONE":
+            return None
         if name not in ALLOWED:
             return None
         return ToolCall(name, (m.group(2) or "").strip())
     return None
 
 
-_STRUCT = {"track", "playlist", "set", "play", "pause", "next", "previous", "now", "up", "down", "mute", "unmute", "get", "della", "spesa", "youtube", "google", "amazon", "wikipedia"}
+_STRUCT = {"track", "playlist", "set", "play", "pause", "next", "previous", "now", "up", "down", "mute", "unmute", "get", "della", "spesa", "youtube", "google", "amazon", "wikipedia",
+           "shopping", "todo", "weekend", "today", "tomorrow", "week", "ora", "data"}
 _NUM = re.compile(r"\d+")
 
 
@@ -206,9 +315,37 @@ _CUES = {
 }
 
 
+_PAST_STORY_EN = re.compile(r"\b(?:yesterday|i forgot|i remembered|i was|i had|i used to|last night|the other day|i just remembered|it occurred to me|i have been|i ve been|i did|i went)\b")
+_CUES_EN = {
+    "PROMEMORIA": r"\b(?:remind\w*|reminders?|alert\w*|notes?|note down|remember|forget|wake|let me know|memori[sz]e|set|put|create|ping|notify)\b",
+    "EVENTO": r"\b(?:calendar|agenda|appointments?|events?|meetings?|schedule|book|add|put|set up|create|block|entry)\b",
+    "CONVERTI": r"\b(?:how (?:many|much)|convert\w*|change|is|are|in|equals?|make|makes|to)\b",
+    "DATA": r"\b(?:days?|weeks?|months?|years?|when|date|day|easter|christmas|new year|how long|until|till|falls?|left|remaining)\b",
+    "CASO": r"\b(?:die|dice|coin|heads|tails|random\w*|pick|choose|draw|number|card|flip|roll|toss|lottery)\b",
+    "AIUTO": r"\b(?:help|what can you do|can you do|how (?:do|to) (?:i )?use|features?|commands?|abilities|capabilities)\b",
+    "TIMER_STATO": r"\b(?:timers?|alarms?|countdowns?|left|remaining|running)\b",
+    "TIMER_ANNULLA": r"\b(?:timers?|alarms?|countdowns?|stopwatch)\b",
+    "TIMER": r"\b(?:timers?|alarms?|wake|alert\w*|countdowns?|stopwatch|minutes?|hours?|seconds?|ring|buzz|remind|ping|notify|beep)\b",
+    "METEO": r"\b(?:weather|rain\w*|umbrella|sun\w*|temperature|degrees|cold|hot|warm|climate|wind\w*|cloud\w*|snow\w*|forecast|sunrise|sunset|storm\w*)\b",
+    "ORA": r"\b(?:time|date|day|today|what day|o clock)\b",
+    "CALCOLA": r"(?:\d|\b(?:times|divided|plus|minus|sum|difference|product|percent|half|double|triple|root|squared|cubed|calculate|how much is|what is|multiply|add|subtract|divide)\b)",
+    "SCHERMO": r"\b(?:screen|page|window|button|key|icon|menu|field|link|label|this|that|see|look|read|click|press|computer|mac|doing|in front|display|showing)\b",
+    "NON_SO": r"\b(?:call\w*|phone|ring|send|message\w*|text|whatsapp|mail|email|turn|switch|light\w*|tv|television|heating|air|order|book|buy|contact\w*|food|eat|pay\w*|print\w*|download|install|photo|picture|video|record\w*|share|post|close|quit|stopwatch|bookmark)\b",
+    "MUSICA": r"\b(?:music|songs?|tracks?|tunes?|playlist|album|play\w*|listen|put on|pause|stop|skip|next|previous|back|artist|band|genre|spotify|resume|continue)\b",
+    "VOLUME": r"\b(?:volume|audio|sound|mute|unmute|silence|quiet|louder|softer|up|down|higher|lower|turn|raise|lower|level|loud|noise|max|full)\b",
+}
+
+
 def plausible(call: ToolCall, user_text: str) -> bool:
     """False se il risultato non ha niente a che fare con quello che e' stato detto (o se e' un racconto al passato): meglio non fare niente che fare la cosa sbagliata."""
     t = normalize(user_text)
+    if i18n.is_en():
+        if call.name in ("PROMEMORIA", "EVENTO", "TIMER", "CASO", "CONVERTI", "DATA") and _PAST_STORY_EN.search(t):
+            return False
+        if call.name in ("CASO", "CONVERTI", "DATA", "AIUTO") and re.search(r"\b(?:i|we|they|he|she)\s+(?:rolled|threw|flipped|tossed|played|won|lost|made|converted|calculated|picked|chose|asked|saw)\b", t):
+            return False
+        cue = _CUES_EN.get(call.name)
+        return bool(cue is None or re.search(cue, t))
     if call.name in ("PROMEMORIA", "EVENTO", "TIMER", "CASO", "CONVERTI", "DATA") and _PAST_STORY.search(t):
         return False
     if call.name in ("CASO", "CONVERTI", "DATA", "AIUTO") and re.search(r"\b(?:ho|hai|ha|abbiamo|hanno|avevo|aveva)\s+(?:tirato|lanciato|giocato|vinto|perso|fatto|convertito|calcolato|scelto|chiesto|visto)\b", t):

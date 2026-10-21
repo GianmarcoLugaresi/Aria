@@ -5,6 +5,7 @@ import datetime as dt
 import re
 from zoneinfo import ZoneInfo
 
+from . import i18n
 from .textutil import normalize
 
 # nome (senza accenti, minuscolo) -> fuso; nome da dire
@@ -40,6 +41,11 @@ _PLACE = re.compile(r"\b(?:a|in|ad|per|di|nel|nella|nello|negli|alle|sull|su)\s+
 def find_zone(text: str) -> tuple[str, str] | None:
     """Il luogo nominato nella frase («che ora e' a New York?», «che ore sono in Giappone») -> (fuso, nome da dire), o None."""
     t = normalize(text).strip(" ?.!")
+    if i18n.is_en():
+        for name in sorted(ZONES_EN, key=len, reverse=True):
+            if re.search(rf"\b(?:in|at|for|of)\s+(?:the\s+)?{re.escape(name)}\b", t) or t.endswith(" " + name):
+                return ZONES_EN[name]
+        return None
     for name in sorted(ZONES, key=len, reverse=True):
         if re.search(rf"\b(?:a|in|ad|per|di|nel|nella|nello|negli|su|sul|sulla|da)\s+(?:la\s+|il\s+|lo\s+|l\s+|i\s+|gli\s+|le\s+)?{re.escape(name)}\b", t) or t.endswith(" " + name):
             return ZONES[name]
@@ -49,3 +55,35 @@ def find_zone(text: str) -> tuple[str, str] | None:
 def time_in(zone: str, now: dt.datetime | None = None) -> dt.datetime:
     base = now.astimezone() if (now and now.tzinfo) else (now or dt.datetime.now()).astimezone()
     return base.astimezone(ZoneInfo(zone))
+
+
+# ---- inglese: i luoghi come li dice un anglofono (nome della frase -> (fuso, nome da dire))
+_EN_PLACES = {
+    "tokyo": ("Asia/Tokyo", "Tokyo"), "japan": ("Asia/Tokyo", "Japan"), "osaka": ("Asia/Tokyo", "Osaka"), "kyoto": ("Asia/Tokyo", "Kyoto"),
+    "new york": ("America/New_York", "New York"), "washington": ("America/New_York", "Washington"), "boston": ("America/New_York", "Boston"), "miami": ("America/New_York", "Miami"),
+    "toronto": ("America/Toronto", "Toronto"), "chicago": ("America/Chicago", "Chicago"), "houston": ("America/Chicago", "Houston"), "dallas": ("America/Chicago", "Dallas"),
+    "denver": ("America/Denver", "Denver"), "los angeles": ("America/Los_Angeles", "Los Angeles"), "san francisco": ("America/Los_Angeles", "San Francisco"), "seattle": ("America/Los_Angeles", "Seattle"),
+    "las vegas": ("America/Los_Angeles", "Las Vegas"), "california": ("America/Los_Angeles", "California"), "united states": ("America/New_York", "New York"), "usa": ("America/New_York", "New York"),
+    "america": ("America/New_York", "New York"), "mexico": ("America/Mexico_City", "Mexico"), "mexico city": ("America/Mexico_City", "Mexico City"), "sao paulo": ("America/Sao_Paulo", "Sao Paulo"),
+    "brazil": ("America/Sao_Paulo", "Brazil"), "rio de janeiro": ("America/Sao_Paulo", "Rio de Janeiro"), "buenos aires": ("America/Argentina/Buenos_Aires", "Buenos Aires"),
+    "argentina": ("America/Argentina/Buenos_Aires", "Argentina"), "lima": ("America/Lima", "Lima"), "bogota": ("America/Bogota", "Bogota"), "chile": ("America/Santiago", "Chile"),
+    "santiago": ("America/Santiago", "Santiago"), "london": ("Europe/London", "London"), "united kingdom": ("Europe/London", "the UK"), "uk": ("Europe/London", "the UK"), "england": ("Europe/London", "England"),
+    "britain": ("Europe/London", "Britain"), "dublin": ("Europe/Dublin", "Dublin"), "ireland": ("Europe/Dublin", "Ireland"), "lisbon": ("Europe/Lisbon", "Lisbon"), "portugal": ("Europe/Lisbon", "Portugal"),
+    "paris": ("Europe/Paris", "Paris"), "france": ("Europe/Paris", "France"), "madrid": ("Europe/Madrid", "Madrid"), "spain": ("Europe/Madrid", "Spain"), "barcelona": ("Europe/Madrid", "Barcelona"),
+    "berlin": ("Europe/Berlin", "Berlin"), "germany": ("Europe/Berlin", "Germany"), "rome": ("Europe/Rome", "Rome"), "milan": ("Europe/Rome", "Milan"), "italy": ("Europe/Rome", "Italy"),
+    "vienna": ("Europe/Vienna", "Vienna"), "zurich": ("Europe/Zurich", "Zurich"), "switzerland": ("Europe/Zurich", "Switzerland"), "amsterdam": ("Europe/Amsterdam", "Amsterdam"),
+    "brussels": ("Europe/Brussels", "Brussels"), "stockholm": ("Europe/Stockholm", "Stockholm"), "oslo": ("Europe/Oslo", "Oslo"), "copenhagen": ("Europe/Copenhagen", "Copenhagen"),
+    "helsinki": ("Europe/Helsinki", "Helsinki"), "warsaw": ("Europe/Warsaw", "Warsaw"), "prague": ("Europe/Prague", "Prague"), "budapest": ("Europe/Budapest", "Budapest"), "athens": ("Europe/Athens", "Athens"),
+    "greece": ("Europe/Athens", "Greece"), "istanbul": ("Europe/Istanbul", "Istanbul"), "turkey": ("Europe/Istanbul", "Turkey"), "moscow": ("Europe/Moscow", "Moscow"), "russia": ("Europe/Moscow", "Russia"),
+    "kyiv": ("Europe/Kyiv", "Kyiv"), "kiev": ("Europe/Kyiv", "Kyiv"), "cairo": ("Africa/Cairo", "Cairo"), "egypt": ("Africa/Cairo", "Egypt"), "johannesburg": ("Africa/Johannesburg", "Johannesburg"),
+    "south africa": ("Africa/Johannesburg", "South Africa"), "nairobi": ("Africa/Nairobi", "Nairobi"), "lagos": ("Africa/Lagos", "Lagos"), "casablanca": ("Africa/Casablanca", "Casablanca"),
+    "morocco": ("Africa/Casablanca", "Morocco"), "dubai": ("Asia/Dubai", "Dubai"), "uae": ("Asia/Dubai", "the UAE"), "emirates": ("Asia/Dubai", "the Emirates"), "tel aviv": ("Asia/Jerusalem", "Tel Aviv"),
+    "israel": ("Asia/Jerusalem", "Israel"), "mumbai": ("Asia/Kolkata", "Mumbai"), "india": ("Asia/Kolkata", "India"), "new delhi": ("Asia/Kolkata", "New Delhi"), "delhi": ("Asia/Kolkata", "Delhi"),
+    "bangkok": ("Asia/Bangkok", "Bangkok"), "thailand": ("Asia/Bangkok", "Thailand"), "singapore": ("Asia/Singapore", "Singapore"), "hong kong": ("Asia/Hong_Kong", "Hong Kong"),
+    "beijing": ("Asia/Shanghai", "Beijing"), "shanghai": ("Asia/Shanghai", "Shanghai"), "china": ("Asia/Shanghai", "China"), "seoul": ("Asia/Seoul", "Seoul"), "korea": ("Asia/Seoul", "Korea"),
+    "south korea": ("Asia/Seoul", "South Korea"), "manila": ("Asia/Manila", "Manila"), "jakarta": ("Asia/Jakarta", "Jakarta"), "indonesia": ("Asia/Jakarta", "Indonesia"), "sydney": ("Australia/Sydney", "Sydney"),
+    "melbourne": ("Australia/Melbourne", "Melbourne"), "australia": ("Australia/Sydney", "Australia"), "perth": ("Australia/Perth", "Perth"), "auckland": ("Pacific/Auckland", "Auckland"),
+    "new zealand": ("Pacific/Auckland", "New Zealand"), "honolulu": ("Pacific/Honolulu", "Honolulu"), "hawaii": ("Pacific/Honolulu", "Hawaii"), "tehran": ("Asia/Tehran", "Tehran"),
+    "riyadh": ("Asia/Riyadh", "Riyadh"), "saudi arabia": ("Asia/Riyadh", "Saudi Arabia"), "islamabad": ("Asia/Karachi", "Islamabad"), "karachi": ("Asia/Karachi", "Karachi"),
+}
+ZONES_EN = _EN_PLACES

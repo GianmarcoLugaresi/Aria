@@ -14,6 +14,7 @@ import os
 import re
 import sys
 
+from . import i18n
 from .textutil import normalize
 
 WRITE_EXT = (".md", ".txt")
@@ -24,7 +25,7 @@ MAX_READ = 200_000
 
 
 class WorkspaceError(Exception):
-    """Un problema spiegabile all'utente, gia' in italiano."""
+    """Un problema spiegabile all'utente, gia' nella sua lingua (italiano o inglese, vedi i18n.py)."""
 
 
 def _home() -> str:
@@ -53,24 +54,24 @@ def win_forbidden(p: str, home: str, env: dict) -> bool:
 def check_root(path: str | None) -> str:
     """Convalida una cartella scelta come cartella di Aria e restituisce il percorso reale. Rifiuta le cartelle di sistema, la Home intera, la Libreria."""
     if not path or not str(path).strip():
-        raise WorkspaceError("Non è stata indicata nessuna cartella.")
+        raise WorkspaceError(i18n.pick("Non è stata indicata nessuna cartella.", "No folder was given."))
     p = os.path.realpath(os.path.expanduser(str(path).strip()))
     home = _home()
     if not os.path.isdir(p):
-        raise WorkspaceError("La cartella non esiste (più).")
+        raise WorkspaceError(i18n.pick("La cartella non esiste (più).", "The folder doesn't exist (any more)."))
     if sys.platform == "win32" and win_forbidden(p, home, os.environ):
-        raise WorkspaceError("Questa è una cartella di sistema o dei programmi: scegline un'altra (meglio una cartella dedicata, ad esempio «Aria» nei Documenti).")
+        raise WorkspaceError(i18n.pick("Questa è una cartella di sistema o dei programmi: scegline un'altra (meglio una cartella dedicata, ad esempio «Aria» nei Documenti).", "This is a system or programs folder: pick another one (ideally a dedicated folder, for example \"Aria\" in Documents)."))
     system = ("/System", "/usr", "/bin", "/sbin", "/etc", "/var", "/private", "/Library", "/Applications", "/opt", "/dev", "/cores")
     if p == "/" or p == home or home.startswith(p + os.sep):
-        raise WorkspaceError("Scegli una cartella dedicata, non la Home o il disco intero: crea una cartella apposta, ad esempio «Aria».")
+        raise WorkspaceError(i18n.pick("Scegli una cartella dedicata, non la Home o il disco intero: crea una cartella apposta, ad esempio «Aria».", "Pick a dedicated folder, not the Home folder or the whole disk: create a folder just for this, for example \"Aria\"."))
     in_home = p.startswith(home + os.sep)
     if (not in_home and any(p == s or p.startswith(s + os.sep) for s in system)) or p == os.path.join(home, "Library") or p.startswith(os.path.join(home, "Library") + os.sep):
-        raise WorkspaceError("Questa è una cartella di sistema: scegline un'altra.")
+        raise WorkspaceError(i18n.pick("Questa è una cartella di sistema: scegline un'altra.", "This is a system folder: pick another one."))
     rel = os.path.relpath(p, home) if p.startswith(home + os.sep) else ""
     if rel.split(os.sep)[0].startswith("."):
-        raise WorkspaceError("Le cartelle nascoste (come .ssh o .config) non vanno bene: scegline un'altra.")
+        raise WorkspaceError(i18n.pick("Le cartelle nascoste (come .ssh o .config) non vanno bene: scegline un'altra.", "Hidden folders (like .ssh or .config) won't do: pick another one."))
     if not os.access(p, os.W_OK | os.X_OK):
-        raise WorkspaceError("Non ho il permesso di scrivere in questa cartella.")
+        raise WorkspaceError(i18n.pick("Non ho il permesso di scrivere in questa cartella.", "I don't have permission to write in this folder."))
     return p
 
 
@@ -83,8 +84,8 @@ def safe_stem(title: str, max_len: int = 60) -> str:
     t = re.sub(r"\s+", " ", t).strip(" .-_'")
     t = t[:max_len].strip(" .-_'")
     if t.split(".")[0].upper() in _WIN_RESERVED:                       # «Con», «Aux», «Nul»…: su Windows non si possono usare come nome di file (nemmeno con l'estensione)
-        t += " (testo)"
-    return (t[:1].upper() + t[1:]) if t else "Senza titolo"
+        t += i18n.pick(" (testo)", " (text)")
+    return (t[:1].upper() + t[1:]) if t else i18n.pick("Senza titolo", "Untitled")
 
 
 class Workspace:
@@ -95,14 +96,14 @@ class Workspace:
     def _inside(self, path: str) -> str:
         real = os.path.realpath(path)
         if real != self.root and not real.startswith(self.root + os.sep):
-            raise WorkspaceError("Quel file è fuori dalla mia cartella: non lo tocco.")
+            raise WorkspaceError(i18n.pick("Quel file è fuori dalla mia cartella: non lo tocco.", "That file is outside my folder: I won't touch it."))
         return real
 
     def _path(self, name: str, ext_ok: tuple[str, ...]) -> str:
         if not name or os.sep in name or name.startswith(".") or name != os.path.basename(name):
-            raise WorkspaceError("Nome di file non valido.")
+            raise WorkspaceError(i18n.pick("Nome di file non valido.", "Invalid file name."))
         if not name.lower().endswith(ext_ok):
-            raise WorkspaceError("Posso usare solo file di testo.")
+            raise WorkspaceError(i18n.pick("Posso usare solo file di testo.", "I can only use text files."))
         return self._inside(os.path.join(self.root, name))
 
     @staticmethod
@@ -114,10 +115,10 @@ class Workspace:
     def new_file(self, title: str, text: str, ext: str = ".md") -> str:
         """Crea un file NUOVO (mai sovrascrive: se il nome esiste ne cerca uno libero). Restituisce il nome."""
         if ext not in WRITE_EXT:
-            raise WorkspaceError("Posso scrivere solo file di testo.")
+            raise WorkspaceError(i18n.pick("Posso scrivere solo file di testo.", "I can only write text files."))
         data = (text or "").strip() + "\n"
         if len(data.encode("utf-8")) > MAX_WRITE:
-            raise WorkspaceError("Il testo è troppo lungo per un file solo.")
+            raise WorkspaceError(i18n.pick("Il testo è troppo lungo per un file solo.", "The text is too long for a single file."))
         stem = safe_stem(title)
         for n in range(1, 100):
             name = f"{stem}{'' if n == 1 else f' ({n})'}{ext}"
@@ -128,18 +129,18 @@ class Workspace:
                 return name
             except FileExistsError:
                 continue
-        raise WorkspaceError("Ci sono già troppi file con questo nome.")
+        raise WorkspaceError(i18n.pick("Ci sono già troppi file con questo nome.", "There are already too many files with this name."))
 
     def append(self, title: str, line: str, header: str | None = None) -> str:
         """Aggiunge una riga in fondo a un file (lo crea se manca). L'unica modifica che Aria fa a un file esistente."""
         line = re.sub(r"\s+", " ", line or "").strip()
         if not line:
-            raise WorkspaceError("Non c'è niente da aggiungere.")
+            raise WorkspaceError(i18n.pick("Non c'è niente da aggiungere.", "There is nothing to add."))
         name = safe_stem(title) + ".md"
         path = self._path(name, WRITE_EXT)
         if os.path.exists(path):
             if os.path.islink(path) or not os.path.isfile(path) or os.path.getsize(path) > MAX_FILE:
-                raise WorkspaceError("Quel file non si può aggiornare (è troppo grande o non è un file normale).")
+                raise WorkspaceError(i18n.pick("Quel file non si può aggiornare (è troppo grande o non è un file normale).", "That file can't be updated (it's too big or not a regular file)."))
             new = False
         else:
             new = True
@@ -170,7 +171,7 @@ class Workspace:
 
     def find(self, query: str) -> str | None:
         """Il file che meglio corrisponde a quello che l'utente ha detto ("il file della spesa")."""
-        words = [w for w in normalize(query).split() if len(w) >= 3 and w not in {"file", "documento", "nota", "della", "dello", "delle", "degli", "del", "dei", "nel", "nella"}]
+        words = [w for w in normalize(query).split() if len(w) >= 3 and w not in {"file", "documento", "nota", "della", "dello", "delle", "degli", "del", "dei", "nel", "nella", "document", "the", "for", "from", "about", "with", "into", "that", "this", "your", "my"}]
         best, best_score = None, 0
         for name, _sz in self.list():
             stem = normalize(self.display(name))
@@ -184,7 +185,7 @@ class Workspace:
     def read(self, name: str, limit: int = MAX_READ) -> str:
         path = self._path(name, READ_EXT)
         if os.path.islink(path) or not os.path.isfile(path):
-            raise WorkspaceError("Non trovo quel file.")
+            raise WorkspaceError(i18n.pick("Non trovo quel file.", "I can't find that file."))
         if path.lower().endswith((".pdf", ".docx")):
             from .docs import extract_text                                      # import qui: docs usa WorkspaceError di questo file
             return extract_text(path, limit)[:limit]
@@ -195,7 +196,10 @@ class Workspace:
 
 _GENERIC = {"file", "documento", "documenti", "testo", "pdf", "word", "della", "dello", "delle", "degli", "nella", "nello", "nelle", "negli", "sulla", "sullo",
             "sulle", "sugli", "quanto", "quando", "quale", "quali", "dimmi", "dammi", "leggi", "guarda", "controlla", "cerca", "trova", "dice", "scritto", "cosa",
-            "come", "dove", "perche", "questo", "questa", "quello", "quella", "dentro", "mio", "mia", "miei", "sono", "hanno", "fatto", "fare", "dire"}
+            "come", "dove", "perche", "questo", "questa", "quello", "quella", "dentro", "mio", "mia", "miei", "sono", "hanno", "fatto", "fare", "dire",
+            # inglese
+            "document", "documents", "text", "what", "when", "where", "which", "does", "about", "this", "that", "with", "from", "there", "their", "your", "tell", "give", "read",
+            "look", "check", "find", "says", "said", "written", "inside", "have", "many", "much", "into", "should", "could", "would", "please", "mine", "file's", "whether", "these", "those"}
 
 
 def match_file(query: str, names: list[str]) -> str | None:

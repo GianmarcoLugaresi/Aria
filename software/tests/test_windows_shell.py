@@ -16,7 +16,7 @@ from aria.config import load                     # noqa: E402
 from aria.macos import MacError              # noqa: E402
 from aria.memory import Memory                   # noqa: E402
 from aria.tools import Tools                     # noqa: E402
-from aria_win import autostart, hotkey, paths    # noqa: E402
+from aria_win import autostart, hotkey, l10n, paths    # noqa: E402
 from aria_win.backend import BackendManager      # noqa: E402
 from aria_win.client import BackendClient        # noqa: E402
 from aria_win.model import AppModel              # noqa: E402
@@ -28,6 +28,8 @@ def _dirs(tmp_path, monkeypatch):
     monkeypatch.setenv("ARIA_SUPPORT", str(tmp_path / "support"))
     monkeypatch.setenv("ARIA_LOCAL", str(tmp_path / "local"))
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("ARIA_LANG", "it")                           # di fabbrica le prove dell'involucro girano in italiano (l'inglese e' in test_windows_en.py)
+    monkeypatch.setattr(l10n, "_code", None)
 
 
 # ---------------------------------------------------------------- scorciatoia

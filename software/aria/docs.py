@@ -9,6 +9,7 @@ import re
 import zipfile
 import xml.etree.ElementTree as ET
 
+from . import i18n
 from .textutil import normalize
 from .workspace import WorkspaceError
 
@@ -20,23 +21,23 @@ _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 
 def _pdf_text(path: str) -> str:
     if os.path.getsize(path) > MAX_PDF_BYTES:
-        raise WorkspaceError("Questo PDF è troppo grande per me.")
+        raise WorkspaceError(i18n.pick("Questo PDF è troppo grande per me.", "This PDF is too big for me."))
     try:
         from pypdf import PdfReader
     except ImportError:
-        raise WorkspaceError("Per leggere i PDF serve la libreria pypdf: rilancia l'installer di Aria.")
+        raise WorkspaceError(i18n.pick("Per leggere i PDF serve la libreria pypdf: rilancia l'installer di Aria.", "Reading PDFs needs the pypdf library: run the Aria installer again."))
     try:
         reader = PdfReader(path)
         if reader.is_encrypted:
-            raise WorkspaceError("Questo PDF è protetto da password: non posso leggerlo.")
+            raise WorkspaceError(i18n.pick("Questo PDF è protetto da password: non posso leggerlo.", "This PDF is password-protected: I can't read it."))
         pages = reader.pages[:MAX_PDF_PAGES]
         text = "\n\n".join((p.extract_text() or "") for p in pages)
     except WorkspaceError:
         raise
     except Exception as e:                                       # noqa: BLE001
-        raise WorkspaceError(f"Non riesco a leggere questo PDF ({type(e).__name__}).") from e
+        raise WorkspaceError(i18n.pick(f"Non riesco a leggere questo PDF ({type(e).__name__}).", f"I can't read this PDF ({type(e).__name__}).")) from e
     if len(re.sub(r"\s+", "", text)) < 20:
-        raise WorkspaceError("Questo PDF sembra una scansione (solo immagini): non ho testo da leggere.")
+        raise WorkspaceError(i18n.pick("Questo PDF sembra una scansione (solo immagini): non ho testo da leggere.", "This PDF looks like a scan (images only): there is no text for me to read."))
     return text
 
 
@@ -45,12 +46,12 @@ def _docx_text(path: str) -> str:
         with zipfile.ZipFile(path) as z:
             info = z.getinfo("word/document.xml")
             if info.file_size > MAX_DOCX_XML:
-                raise WorkspaceError("Questo documento è troppo grande per me.")
+                raise WorkspaceError(i18n.pick("Questo documento è troppo grande per me.", "This document is too big for me."))
             root = ET.fromstring(z.read("word/document.xml"))
     except WorkspaceError:
         raise
     except Exception as e:                                       # noqa: BLE001
-        raise WorkspaceError(f"Non riesco a leggere questo documento Word ({type(e).__name__}).") from e
+        raise WorkspaceError(i18n.pick(f"Non riesco a leggere questo documento Word ({type(e).__name__}).", f"I can't read this Word document ({type(e).__name__}).")) from e
     paras = []
     for p in root.iter(f"{_W}p"):
         txt = "".join((t.text or "") for t in p.iter(f"{_W}t"))
@@ -70,7 +71,8 @@ def extract_text(path: str, limit: int = 400_000) -> str:
 
 
 _STOP = {"quanto", "quale", "quali", "quando", "dove", "come", "perche", "chi", "cosa", "che", "dice", "scritto", "nel", "nella", "sono", "della", "delle",
-         "degli", "dello", "dei", "documento", "file", "testo", "ancora", "anche", "questo", "questa", "sono", "stato", "essere"}
+         "degli", "dello", "dei", "documento", "file", "testo", "ancora", "anche", "questo", "questa", "sono", "stato", "essere",
+         "what", "when", "where", "which", "does", "about", "this", "that", "with", "from", "there", "their", "your", "document", "text", "says", "said", "written", "have", "many", "much", "into", "tell", "mention", "mentions"}
 
 
 def _chunks(text: str, size: int = 900) -> list[str]:

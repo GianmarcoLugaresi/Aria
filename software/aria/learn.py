@@ -12,6 +12,8 @@ import datetime as dt
 import re
 from dataclasses import dataclass
 
+from . import i18n
+
 _W = r"[A-Za-zÀ-ÖØ-öø-ÿ'’]"
 _WORD = re.compile(rf"{_W}+")
 _NOT_NAMES = {
@@ -273,3 +275,20 @@ def extract(text: str, now: dt.datetime | None = None) -> list[Fact]:
         label = f"{_GIORNI[day.weekday()]} {day.day} {_MESI[day.month - 1]}"
         add(f"{label[0].upper() + label[1:]}: {_VERBS[verb.lower()]} {rest}", 3, "evento", due)
     return out
+
+
+# ---- l'inglese: le stesse funzioni, con le regole di learn_en.py (la lingua si sceglie nelle Impostazioni, vedi i18n.py)
+def _dispatch(name: str):
+    it = globals()[name]
+
+    def f(*a, **k):
+        if i18n.is_en():
+            from . import learn_en
+            return getattr(learn_en, name)(*a, **k)
+        return it(*a, **k)
+    f.__name__, f.__doc__ = name, it.__doc__
+    return f
+
+
+for _n in ("parse_gender", "parse_name", "parse_name_denial", "parse_city", "parse_city_denial", "is_decline", "extract"):
+    globals()[_n] = _dispatch(_n)

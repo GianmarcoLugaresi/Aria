@@ -23,19 +23,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let femaleVoices = ["lola", "vera", "eve", "jane", "mary", "cosette", "anna", "estelle", "fantine"]
     private let maleVoices = ["giovanni", "paul", "george", "michael", "javert"]
     private let naturalOnlyVoices = ["aria", "chiara", "elena", "marco"]     // esistono solo con la «voce naturale» accesa (Impostazioni)
+    // In inglese le voci di Pocket TTS hanno gli stessi nomi (parlano inglese); la voce naturale c'e' solo in italiano.
+    private let femaleVoicesEn = ["alba", "anna", "azelma", "cosette", "eponine", "eve", "fantine", "jane", "mary", "vera"]       // solo voci registrate da persone che parlano inglese (lola, estelle… hanno l'accento spagnolo, francese…)
+    private let maleVoicesEn = ["charles", "george", "jean", "javert", "marius", "michael", "paul"]
     private var voiceGroups: [(title: String, names: [String])] {
-        [("Voci femminili", femaleVoices), ("Voci maschili", maleVoices), ("Solo con la voce naturale", naturalOnlyVoices)]
+        if L10n.isEnglish { return [("Female voices", femaleVoicesEn), ("Male voices", maleVoicesEn)] }
+        return [("Voci femminili", femaleVoices), ("Voci maschili", maleVoices), ("Solo con la voce naturale", naturalOnlyVoices)]
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // una sola copia alla volta
         let me = Bundle.main.bundleIdentifier ?? "it.aria.assistente"
         if NSRunningApplication.runningApplications(withBundleIdentifier: me).count > 1 {
-            Paths.log("Aria e' gia' aperta: esco")
+            Paths.log(tr("Aria e' gia' aperta: esco", "Aria is already open: quitting"))
             NSApp.terminate(nil)
             return
         }
-        Paths.log("Aria avviata")
+        Paths.log(tr("Aria avviata", "Aria started"))
         for sig in [SIGTERM, SIGINT, SIGHUP] {                         // chiusura "gentile" anche da terminale: ferma il backend
             signal(sig, SIG_IGN)
             let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)
@@ -140,17 +144,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshMenu() {
         let m = NSMenu()
-        let wake = NSMenuItem(title: state == "idle" ? "Parla con Aria" : "Ferma Aria", action: #selector(hotkeyPressed), keyEquivalent: " ")
+        let wake = NSMenuItem(title: state == "idle" ? tr("Parla con Aria", "Talk to Aria") : tr("Ferma Aria", "Stop Aria"), action: #selector(hotkeyPressed), keyEquivalent: " ")
         wake.keyEquivalentModifierMask = [.option]
         wake.target = self
         m.addItem(wake)
         m.addItem(.separator())
 
-        let stateItem = NSMenuItem(title: statusText(), action: nil, keyEquivalent: "")
-        stateItem.isEnabled = false
-        m.addItem(stateItem)
+        for line in wrapMenuText(statusText()) {                          // lo stato puo' essere lungo (es. il download dei modelli): a capo, senza allargare il pannello
+            let stateItem = NSMenuItem(title: line, action: nil, keyEquivalent: "")
+            stateItem.isEnabled = false
+            m.addItem(stateItem)
+        }
         if micDenied {
-            let fix = NSMenuItem(title: "Microfono non autorizzato: apri le impostazioni…", action: #selector(openMicSettings), keyEquivalent: "")
+            let fix = NSMenuItem(title: tr("Microfono non autorizzato: apri le impostazioni…", "Microphone not allowed: open settings…"), action: #selector(openMicSettings), keyEquivalent: "")
             fix.target = self
             m.addItem(fix)
         }
@@ -170,28 +176,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             voiceMenu.addItem(.separator())
         }
-        let voiceItem = NSMenuItem(title: "Voce", action: nil, keyEquivalent: "")
+        let voiceItem = NSMenuItem(title: tr("Voce", "Voice"), action: nil, keyEquivalent: "")
         voiceItem.submenu = voiceMenu
         m.addItem(voiceItem)
 
-        let mute = NSMenuItem(title: "Silenzia il microfono (niente “\(wakePhrase)”)", action: #selector(toggleMute), keyEquivalent: "")
+        let mute = NSMenuItem(title: tr("Silenzia il microfono (niente “\(wakePhrase)”)", "Mute the microphone (no “\(wakePhrase)”)"), action: #selector(toggleMute), keyEquivalent: "")
         mute.target = self
         mute.state = muted ? .on : .off
         m.addItem(mute)
 
-        let login = NSMenuItem(title: "Apri all'accesso", action: #selector(toggleLogin), keyEquivalent: "")
+        let login = NSMenuItem(title: tr("Apri all'accesso", "Open at login"), action: #selector(toggleLogin), keyEquivalent: "")
         login.target = self
         login.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
         m.addItem(login)
         m.addItem(.separator())
 
-        let settings = NSMenuItem(title: "Impostazioni…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: tr("Impostazioni…", "Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         m.addItem(settings)
-        let logs = NSMenuItem(title: "Mostra i log", action: #selector(openLogs), keyEquivalent: "")
+        let logs = NSMenuItem(title: tr("Mostra i log", "Show logs"), action: #selector(openLogs), keyEquivalent: "")
         logs.target = self
         m.addItem(logs)
-        let quit = NSMenuItem(title: "Esci da Aria", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: tr("Esci da Aria", "Quit Aria"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         m.addItem(quit)
         statusItem.menu = m
         updateIcon()
@@ -199,15 +205,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func statusText() -> String {
         if let p = problem { return "⚠︎ " + p }
-        if !client.connected { return "Stato: in avvio…" }
-        if !ready { return "Stato: sto caricando i modelli…" }
-        if muted { return "Stato: microfono silenziato" }
-        if paused && state == "idle" { return "Stato: in pausa (a batteria, schermo spento)" }
+        if !client.connected { return tr("Stato: in avvio…", "Status: starting…") }
+        if !ready { return tr("Stato: sto caricando i modelli…", "Status: loading the models…") }
+        if muted { return tr("Stato: microfono silenziato", "Status: microphone muted") }
+        if paused && state == "idle" { return tr("Stato: in pausa (a batteria, schermo spento)", "Status: paused (on battery, screen off)") }
         switch state {
-        case "listening": return "Stato: ti ascolta"
-        case "thinking": return "Stato: ci pensa"
-        case "speaking": return "Stato: sta parlando"
-        default: return "Stato: pronta, di' «\(wakePhrase)»"
+        case "listening": return tr("Stato: ti ascolta", "Status: listening")
+        case "thinking": return tr("Stato: ci pensa", "Status: thinking")
+        case "speaking": return tr("Stato: sta parlando", "Status: speaking")
+        default: return tr("Stato: pronta, di' «\(wakePhrase)»", "Status: ready, say “\(wakePhrase)”")
         }
     }
 
@@ -279,8 +285,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.ready = false                                // il menu torna a dire "sto caricando i modelli…"
                     self.refreshMenu()
                     self.backend.restart()
-                })
+                },
+                onLanguage: { [weak self] in self?.languageChanged() })
         }
+    }
+
+    /// La lingua e' cambiata nelle Impostazioni: scritte nuove (menu, schermatina) e il cervello riparte nella lingua nuova (voce, riconoscimento, carattere).
+    private func languageChanged() {
+        L10n.reload()
+        overlay.setLanguage(L10n.code)
+        ready = false
+        currentVoice = ""                                             // le voci della lingua nuova hanno altri nomi: il cervello dira' quella in uso
+        MainActor.assumeIsolated { SettingsWindowController.shared.model.voiceGroups = voiceGroups; SettingsWindowController.shared.model.voice = "" }
+        refreshMenu()
+        backend.restart()
     }
 
     @objc private func openLogs() { NSWorkspace.shared.open(Paths.logs) }

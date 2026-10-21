@@ -16,6 +16,20 @@ attesa ──► «Hey Aria» ──► ascolto ──► pensiero ──► par
 5. **Strumenti.** Il modello non usa il «function calling» (inaffidabile sui modelli piccoli): se serve un dato scrive una riga come `[[METEO: Roma domani]]`, Aria la esegue e gli ridà il risultato per la risposta a voce. I poteri sul computer (`powers.py`, `filetools.py`, `screen.py`) non possono essere lanciati dal modello: partono solo da una richiesta riconosciuta nella tua frase.
 6. **Voce.** Le frasi vanno alla sintesi appena complete, spezzate dove si respira. `speech.py` trasforma ciò che si *legge* in ciò che si *dice* («18°C» → «diciotto gradi»). Dopo la sintesi si controlla che la frase non sia stata tagliata (`voicecheck.py`).
 
+## Italiano e inglese
+
+Aria parla due lingue, **italiano** e **inglese**, e si cambia da Impostazioni ▸ *Lingua* (oppure `python -m aria.models language set it|en|auto`). Una sola lingua alla volta, per tutto il programma (`i18n.py`): all'avvio vale la scelta fatta nelle Impostazioni, poi `language:` di `config.yaml`, poi la lingua del Mac (italiano solo se il Mac è in italiano, altrimenti inglese).
+
+Cosa cambia con la lingua:
+
+- **le scritte dell'app**: menu, Impostazioni, schermatina (`L10n.swift`, `tr("italiano", "english")`; l'overlay si aggiorna da solo con `ariaLang()`);
+- **cosa capisce**: Whisper ascolta nella lingua scelta (`stt.language`, suggerimento in `stt.prompt()`), il riconoscimento di Apple parte con `--locale en-US`, e le regole che riconoscono le richieste sono due serie parallele (`intent.py` / `intent_en.py`, `timeparse.py` / `timeparse_en.py`, `phrasing.py` / `phrasing_en.py`…) scelte da funzioni «di smistamento» con gli stessi nomi: il resto del programma non sa che lingua sta usando;
+- **cosa dice**: il carattere (`persona.md` / `persona.en.md`), le «note di regia», le frasi di saluto e di cortesia (`dialog_en.py`, `style_en.py`, `rhythm_en.py`), le risposte degli strumenti (`i18n.pick(italiano, inglese)` nel punto in cui nascono), `speech_en.py` che trasforma ciò che si *legge* in ciò che si *dice* («18°C» → «eighteen degrees Celsius»);
+- **la voce**: Pocket TTS con i pesi inglesi (`language: english`, voce di fabbrica `alba`; scaricati la prima volta, circa 0,2 GB). La voce naturale (Qwen3-TTS) c'è solo in italiano;
+- **le unità di misura**: in inglese, gradi Fahrenheit e miglia se il Mac è impostato così (`units: auto|metric|imperial` in `config.yaml`).
+
+I nomi interni degli strumenti (`METEO`, `TIMER`, `CALCOLA`…) e il formato dei loro argomenti non cambiano con la lingua: sono lo stesso protocollo, scritto una volta sola.
+
 ## Interrompere Aria
 
 Il microfono, durante la risposta, sente anche la sua voce. Sul Mac si risolve in due modi, secondo la configurazione:
@@ -23,7 +37,7 @@ Il microfono, durante la risposta, sente anche la sua voce. Sul Mac si risolve i
 - con il **filtro eco di macOS** (Voice Processing, `software/helpers/aria_vpmic.swift`) la voce di Aria sparisce dal microfono e ciò che resta è l'utente: ogni ~0,2 s, se c'è voce, si trascrive e si guardano le *parole* (`bargein.py`);
 - senza, un filtro adattivo (`aec.py`) toglie l'eco e/o si ascolta nelle pause tra una frase e l'altra.
 
-Le parole che coincidono con quelle che Aria sta dicendo sono eco e si ignorano; «basta», «aspetta», «stop», «fermati» fermano subito.
+Le parole che coincidono con quelle che Aria sta dicendo sono eco e si ignorano; «basta», «aspetta», «stop», «fermati» fermano subito (in inglese «stop», «wait», «hold on», «enough»…).
 
 ## Mappa dei moduli (`software/aria/`)
 
@@ -32,6 +46,7 @@ Le parole che coincidono con quelle che Aria sta dicendo sono eco e si ignorano;
 | `conversation.py` | il ciclo: attesa, ascolto, pensiero, parola; interruzioni; strumenti |
 | `main.py`, `config.py`, `persona.py` | avvio, configurazione (YAML + Impostazioni), prompt di sistema |
 | `intent.py`, `phrasing.py`, `llmintent.py`, `timeparse.py` | capire le richieste: regole, forme di cortesia, ultima rete col chatbot, date e orari in italiano |
+| `i18n.py`, `intent_en.py`, `phrasing_en.py`, `timeparse_en.py`, `speech_en.py`, `dialog_en.py`, `style_en.py`, `rhythm_en.py`, `learn_en.py`, `everyday_en.py`, `ui_en.py`, `data/persona_en.md` | la lingua scelta e le «gemelle» inglesi dei moduli italiani (vedi sopra) |
 | `tools.py`, `everyday.py`, `worldclock.py` | ora, meteo, Wikipedia, ricerca, timer, calcoli, conversioni, fusi orari |
 | `powers.py`, `macos.py`, `winos.py` | promemoria, calendario, musica, app, Scorciatoie (macOS); app e volume (Windows) |
 | `filetools.py`, `workspace.py`, `docs.py` | scrivere e leggere file nella sola cartella di Aria; testo da PDF e Word |

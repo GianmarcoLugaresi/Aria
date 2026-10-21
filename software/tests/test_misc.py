@@ -88,7 +88,7 @@ def test_voice_choice_is_persisted_and_restored(tmp_path):
     cfg["brains"] = [{"name": "x", "tts": {"kind": "pocket", "voice": "lola"}}]
     hub = Hub()
     _restore_voice(cfg, hub)
-    assert cfg["brains"][0]["tts"]["voice"] == "lola"            # nessun file: resta il default
+    assert cfg["brains"][0]["tts"]["voice"] == "lola" and hub.info["voice"] == "lola"      # nessun file: resta il default, e il menu lo segna
     hub.dispatch_command({"cmd": "voice", "name": "vera"})       # scelta dal menu dell'app
     assert (tmp_path / "voce.txt").read_text() == "vera"
     cfg2 = load()

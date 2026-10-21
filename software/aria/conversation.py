@@ -12,12 +12,12 @@ from typing import AsyncIterator
 import numpy as np
 
 from .audio import CHIME_DONE, CHIME_ERROR, CHIME_TIMER, CHIME_WAKE, tone
-from . import dialog, intent, learn, rhythm, style
+from . import dialog, i18n, intent, intent_en, learn, rhythm, style
 from .state import Hub, State
 from .filetools import LONG_TOOLS
 from .powers import ASK, CONFIRM, PASS
 from .textutil import ToolCall, normalize
-from .tools import MODEL_TOOLS, NEED_CITY, REFUSED, SPEAK_VERBATIM
+from .tools import MODEL_TOOLS, NEED_CITY, REFUSED, REFUSED_EN, SPEAK_VERBATIM
 from .textutil import SentenceChunker, TagFilter, is_stop_command, matches_phrase, strip_emoji, strip_think
 from .speech import shape_pause, speechify, trim_silence
 from .vad import Endpointer
@@ -40,6 +40,38 @@ WORKING = ["Va bene, ci lavoro un momento.", "Ok, mi metto al lavoro: ci voglion
 WORKING_SCREEN = ["Guardo lo schermo, un attimo.", "Dammi un secondo, ci guardo.", "Ok, do un'occhiata allo schermo."]
 WORKING_DOC = ["Va bene, lo scrivo per bene, controllo e lo rileggo: ci vuole circa un minuto.", "Ok, cerco le informazioni giuste, scrivo il documento e lo rivedo: dammi un minutino.", "Certo, lo scrivo con calma e lo ricontrollo: ci metto un po'."]
 VOICE_SAMPLE = "Eccomi, sono Aria. Ti piace questa voce?"     # senza "hey Aria": non deve far scattare l'attivazione dal microfono
+# ---- inglese (la lingua si sceglie nelle Impostazioni, vedi i18n.py): le stesse frasi, in inglese
+FILLERS_EN = ["Hmm, let's see.", "Well…", "One moment.", "Let me look.", "So."]
+TOOL_FILLERS_EN = ["Let me check.", "One moment, let's see.", "Looking now."]
+ASK_NAME_EN = ["By the way, we haven't really met: what's your name?", "Oh, I forgot: what's your name? I'd like to know.", "Actually, I don't know your name yet. What is it?"]
+ASK_CITY_EN = ["And tell me, what city are you in? That way I know the weather where you are.", "Which city do you live in? Then I can give you the right forecast."]
+SLOW_LABEL_EN = {"SCRIVI": "Writing the document", "SALVA": "Writing the document", "RICERCA": "Doing the research", "RIASSUMI": "Reading and summarizing", "DOCUMENTO": "Preparing the document",
+                 "BRIEFING": "Preparing the summary", "AGENDA": "Checking the agenda", "SCHERMO": "Looking at the screen"}
+_YES_EN = re.compile(r"^(?:yes|yeah|yep|yup|sure|of course|ok|okay|alright|go ahead|do it|run it|confirm|confirmed|proceed|go|absolutely|please do|please|sounds good|why not|certainly|definitely|fine)\b")
+_NO_EN = re.compile(r"^(?:no|nope|nah|not|don t|do not|cancel|never mind|forget it|leave it|skip it|nothing|neither|stop|wait|hold on)\b")
+WORKING_EN = ["Okay, give me a moment on this.", "Sure, getting to work: it only takes a few seconds.", "Of course, give me a few seconds."]
+WORKING_SCREEN_EN = ["Looking at the screen, one moment.", "Give me a second, I'm taking a look.", "Okay, let me glance at the screen."]
+WORKING_DOC_EN = ["Okay, I'll write it properly, check it and read it over: it takes about a minute.", "Sure, I'll look up the right information, write the document and review it: give me a minute.",
+                  "Of course, I'll write it carefully and double-check it: it'll take a little while."]
+VOICE_SAMPLE_EN = "Here I am, I'm Aria. Do you like this voice?"
+
+
+def _fillers() -> list[str]:
+    return FILLERS_EN if i18n.is_en() else FILLERS
+
+
+def _tool_fillers() -> list[str]:
+    return TOOL_FILLERS_EN if i18n.is_en() else TOOL_FILLERS
+
+
+def _voice_sample() -> str:
+    return VOICE_SAMPLE_EN if i18n.is_en() else VOICE_SAMPLE
+
+
+def _working(kind: str = "") -> list[str]:
+    if i18n.is_en():
+        return WORKING_DOC_EN if kind == "doc" else WORKING_SCREEN_EN if kind == "screen" else WORKING_EN
+    return WORKING_DOC if kind == "doc" else WORKING_SCREEN if kind == "screen" else WORKING
 ASK_MAX = 3                                      # quante volte, in tutto, chiede la stessa cosa prima di smettere
 ASK_EVERY_H = 20                                 # e al massimo una volta al giorno
 
@@ -80,6 +112,7 @@ def alternating(history: list[dict]) -> list[dict]:
 def strip_wake(text: str, phrase: str) -> str:
     """Toglie 'hey aria' dall'inizio della trascrizione (anche storpiato: 'ehi aria', 'hey arya').
     Un 'ciao' da solo NON viene tolto: e' un saluto vero."""
+    text = re.sub(r"(?<=[A-Za-z])([,.!?;:])(?=[A-Za-z])", r"\1 ", text)        # «Hey Aria,what time is it»: la virgola attaccata non deve mangiare la prima parola del comando
     words = text.split()
     n = len(phrase.split())
     head = " ".join(words[:n])
@@ -153,7 +186,7 @@ class Aria:
         slow = call.name in SLOW_TOOLS
         self._tool_busy = slow
         if slow:
-            self.hub.progress(SLOW_LABEL.get(call.name, "Ci sto lavorando"))                       # senza sapere quanto manca: barra che scorre (i documenti poi la precisano)
+            self.hub.progress((SLOW_LABEL_EN if i18n.is_en() else SLOW_LABEL).get(call.name, i18n.pick("Ci sto lavorando", "Working on it")))                       # senza sapere quanto manca: barra che scorre (i documenti poi la precisano)
         try:
             return await self.tools.run(call)
         finally:
@@ -209,11 +242,11 @@ class Aria:
     async def _voice_preview(self) -> None:
         ticker = None
         try:
-            pcm, sr = await self.router.synthesize(VOICE_SAMPLE)
+            pcm, sr = await self.router.synthesize(_voice_sample())
             if self.in_session:
                 return
             log.info("ANTEPRIMA VOCE: %s", self._current_voice())
-            self.hub.transcript("aria", VOICE_SAMPLE, final=False)
+            self.hub.transcript("aria", _voice_sample(), final=False)
             self.hub.set_state(State.SPEAKING)                              # la schermata compare con la rete che "parla"
             ticker = asyncio.create_task(self._speaking_level())
             self.speaker.play(pcm, sr)
@@ -507,7 +540,7 @@ class Aria:
         if not self.t.get("filler_after_ms"):
             return
         voice = self._current_voice()
-        for f in FILLERS + TOOL_FILLERS:
+        for f in _fillers() + _tool_fillers():
             try:
                 self.fillers.append((f, *await self.router.synthesize(f), voice))
             except Exception as e:                                  # noqa: BLE001
@@ -516,7 +549,7 @@ class Aria:
 
     def _filler(self, tool: bool = False):
         v = self._current_voice()
-        pool = [x for x in self.fillers if (x[0] in TOOL_FILLERS) == tool and x[3] == v]      # mai con una voce diversa da quella scelta
+        pool = [x for x in self.fillers if (x[0] in _tool_fillers()) == tool and x[3] == v]      # mai con una voce diversa da quella scelta
         return random.choice(pool) if pool else None
 
     # ---------------------------------------------------------------- attesa
@@ -690,15 +723,15 @@ class Aria:
                 if self.pending_confirm is not None:
                     action, self.pending_confirm = self.pending_confirm, None
                     t = normalize(text)
-                    if _YES.match(t):
+                    if (_YES_EN if i18n.is_en() else _YES).match(t):
                         self.history.append({"role": "user", "content": text})
-                        await self._say("Ok, la eseguo.")
+                        await self._say(i18n.pick("Ok, la eseguo.", "Okay, running it."))
                         await self._say(await self.tools.run(action))
                         carry = None
                         continue
-                    if _NO.match(t):
+                    if (_NO_EN if i18n.is_en() else _NO).match(t):
                         self.history.append({"role": "user", "content": text})
-                        await self._say("Va bene, non la eseguo.")
+                        await self._say(i18n.pick("Va bene, non la eseguo.", "Alright, I won't run it."))
                         carry = None
                         continue                                                 # altrimenti e' un'altra richiesta: si tratta normalmente
                 if self.pending_slot is None and self.pending is None and self.cfg.get("human", {}).get("dialog_acts", True):
@@ -803,20 +836,26 @@ class Aria:
         if not due:
             return None
         fid, text, days = due[0]
-        when = {-1: "ieri", -2: "l'altro ieri"}.get(days, "qualche giorno fa")
+        when = ({-1: "yesterday", -2: "the day before yesterday"}.get(days, "a few days ago") if i18n.is_en() else {-1: "ieri", -2: "l'altro ieri"}.get(days, "qualche giorno fa"))
         self.memory.mark_followed(fid)
         try:
-            out = await self._generate_text(
-                "Scrivi UNA sola frase: una domanda breve, calda e naturale in italiano, per chiedere a un amico come è andata una cosa di cui ti aveva parlato. "
-                "Nessun saluto, nessun nome, nessuna spiegazione: solo la domanda.",
-                f"Un amico ti aveva detto («{text}») {when}. Come gli chiedi com'è andata?", 40)
+            if i18n.is_en():
+                out = await self._generate_text(
+                    "Write ONE single sentence: a short, warm and natural question in English, to ask a friend how something they had told you about went. "
+                    "No greeting, no name, no explanation: just the question.",
+                    f"A friend had told you (\"{text}\") {when}. How do you ask them how it went?", 40)
+            else:
+                out = await self._generate_text(
+                    "Scrivi UNA sola frase: una domanda breve, calda e naturale in italiano, per chiedere a un amico come è andata una cosa di cui ti aveva parlato. "
+                    "Nessun saluto, nessun nome, nessuna spiegazione: solo la domanda.",
+                    f"Un amico ti aveva detto («{text}») {when}. Come gli chiedi com'è andata?", 40)
         except Exception as e:                                              # noqa: BLE001
             log.debug("domanda di follow-up non riuscita: %s", e)
             out = ""
         q = re.split(r"(?<=[?])\s", style.clean_reply(strip_emoji(out)).strip())[0] if out else ""
         if q.endswith("?") and 3 <= len(q.split()) <= 20 and "\n" not in q:
             return q
-        return "Com'è andata quella cosa di cui mi avevi parlato?"
+        return i18n.pick("Com'è andata quella cosa di cui mi avevi parlato?", "How did that thing you told me about go?")
 
     async def _dialog_act(self, text: str) -> str | None:
         """Gli «atti» che una persona gestisce senza pensarci. Restituisce 'end' (ha salutato: la conversazione finisce), True (gestito) o None."""
@@ -829,7 +868,7 @@ class Aria:
             return True
         if dialog.is_dismissal(text):                                        # «spegniti», «vai in background»: torna in disparte (prima di qualsiasi strumento: «spegni» e' anche la musica)
             self.history.append({"role": "user", "content": text})
-            self._last_closing = random.choice([r for r in dialog.DISMISS_REPLIES if r != self._last_closing] or dialog.DISMISS_REPLIES)
+            self._last_closing = random.choice([r for r in dialog.dismiss_replies() if r != self._last_closing] or dialog.dismiss_replies())
             self._said_goodbye = True
             await self._say(self._last_closing)
             return "end"
@@ -882,39 +921,61 @@ class Aria:
 
     async def _voice_act(self, kind: str, arg: str) -> None:
         """La voce di Aria a richiesta: accende/spegne la «voce naturale» (Impostazioni → poteri) e passa da una voce all'altra."""
+        if i18n.is_en():
+            await self._voice_act_en(kind, arg)
+            return
         from . import profiles as P
         from .tts import QwenTTS
         path = self.cfg.get("_config_path")
         auto = next((o for o in self.router.objects("tts") if hasattr(o, "qwen")), None)
         if auto is None or not path:
-            await self._say("Per ora ho una voce sola, mi dispiace.")
+            await self._say(i18n.pick("Per ora ho una voce sola, mi dispiace.", "For now I only have one voice, sorry."))
             return
         q = auto.qwen
         if kind == "natural_off":
             P.set_power(path, "voice_natural", False)
             q._on_cache = (0.0, False)
-            await self._say("Fatto, torno alla voce di prima.")
+            await self._say(i18n.pick("Fatto, torno alla voce di prima.", "Done, I'm going back to the previous voice."))
             return
         if kind == "natural_on" or not q.enabled():
             if q.enabled():
-                await self._say("La voce naturale è già accesa.")
+                await self._say(i18n.pick("La voce naturale è già accesa.", "The natural voice is already on."))
                 return
             if kind != "natural_on":                                         # «cambia voce» con una voce sola: dice cosa si puo' fare
-                await self._say("Con questa voce non posso cambiare. Se vuoi, dimmi «attiva la voce naturale»: ne ho tante, da donna e anche da uomo: sono quelle che trovi anche nell'elenco delle voci.")
+                await self._say(i18n.pick("Con questa voce non posso cambiare. Se vuoi, dimmi «attiva la voce naturale»: ne ho tante, da donna e anche da uomo: sono quelle che trovi anche nell'elenco delle voci.",
+                                      "I can't change this voice. If you like, say \"turn on the natural voice\": I have plenty, female and male, the same ones you find in the voice list."))
                 return
             P.set_power(path, "voice_natural", True)
             q._on_cache = (0.0, True)
             first = not q.downloaded()
             q.usable()                                                       # parte subito: scarica il modello o lo carica in memoria
-            await self._say("Va bene, la accendo. La prima volta devo scaricare il modello, ci vuole un po': intanto parlo come prima e poi cambio da sola." if first
-                            else "Va bene, la accendo. Ci metto qualche secondo a caricarla, poi parlo con la voce nuova.")
+            await self._say(i18n.pick("Va bene, la accendo. La prima volta devo scaricare il modello, ci vuole un po': intanto parlo come prima e poi cambio da sola." if first
+                                      else "Va bene, la accendo. Ci metto qualche secondo a caricarla, poi parlo con la voce nuova.",
+                                      "Okay, turning it on. The first time I have to download the model, which takes a while: meanwhile I'll talk as before and then switch by myself." if first
+                                      else "Okay, turning it on. It takes a few seconds to load, then I'll talk with the new voice."))
             return
         if not q.usable():
-            await self._say("La voce naturale si sta ancora preparando: tra poco potrò cambiarla.")
+            await self._say(i18n.pick("La voce naturale si sta ancora preparando: tra poco potrò cambiarla.", "The natural voice is still getting ready: I'll be able to change it in a moment."))
             return
         name = arg if kind == "set" else QwenTTS.VOICES[(QwenTTS.VOICES.index(q.voice) + 1) % len(QwenTTS.VOICES)]
         self.hub.dispatch_command({"cmd": "voice", "name": name})            # come dal menu: la imposta e la ricorda
-        await self._say(f"Ecco, questa è la voce di {name.capitalize()}. Ti piace?")
+        await self._say(i18n.pick(f"Ecco, questa è la voce di {name.capitalize()}. Ti piace?", f"Here it is, this is the voice of {name.capitalize()}. Do you like it?"))
+
+    async def _voice_act_en(self, kind: str, arg: str) -> None:
+        """Cambiare voce in inglese: si sceglie tra le voci inglesi di Pocket TTS (per nome, «a male voice», o la prossima dell'elenco). La voce naturale (Qwen3-TTS) c'e' solo in italiano."""
+        pocket = any(hasattr(o, "pocket") or hasattr(o, "VOICES_F") for o in self.router.objects("tts"))
+        if kind in ("natural_on", "natural_off"):
+            await self._say("The natural voice is only available in Italian for now. In English you can pick another voice: say, for example, use the voice of George." if kind == "natural_on"
+                            else "I'm already using the standard voice.")
+            return
+        if not pocket:
+            await self._say("With this setup I only have one voice, sorry.")
+            return
+        voices = i18n.EN_VOICES
+        current = (self._current_voice() or "").lower()
+        name = arg if kind == "set" else voices[(voices.index(current) + 1) % len(voices) if current in voices else 0]
+        self.hub.dispatch_command({"cmd": "voice", "name": name})            # come dal menu: la imposta e la ricorda
+        await self._say(f"Here it is, this is the voice of {name.capitalize()}. Do you like it?")
 
     # ---------------------------------------------------------------- ascolto
     async def _frames(self, carry):
@@ -958,9 +1019,12 @@ class Aria:
     @staticmethod
     def _tool_followup(call, result: str) -> list[dict]:
         return [{"role": "assistant", "content": f"[[{call.name}: {call.arg}]]"},
-                {"role": "user", "content": f"(Dati dal sistema, non detti dall'utente: {result})\n"
-                                            f"Rispondi ora all'utente a voce, in una o due frasi, con parole tue, come se lo sapessi tu. "
-                                            f"Non nominare il sistema, non dire 'cercato', nessun comando."}]
+                {"role": "user", "content": (f"(System data, not said by the user: {result})\n"
+                                             f"Now answer the user out loud, in one or two sentences, in your own words, as if you knew it yourself. "
+                                             f"Don't mention the system, don't say 'searched', no commands.") if i18n.is_en() else
+                                            (f"(Dati dal sistema, non detti dall'utente: {result})\n"
+                                             f"Rispondi ora all'utente a voce, in una o due frasi, con parole tue, come se lo sapessi tu. "
+                                             f"Non nominare il sistema, non dire 'cercato', nessun comando.")}]
 
     def _llm_temperature(self) -> float:
         """La temperatura di base del chatbot in uso (config): la «mossa» del turno la sposta un po' (piu' ferma per spiegare, piu' libera per i pareri)."""
@@ -1020,18 +1084,18 @@ class Aria:
             from .tools import parse_duration
             w = parse_when(user_text, dt.datetime.now())
             if not (parse_duration(t) or (w and w.has_time)):
-                return "Non ho capito per quanto tempo o a che ora. Dimmelo, ad esempio: metti un timer di dieci minuti."
+                return i18n.pick("Non ho capito per quanto tempo o a che ora. Dimmelo, ad esempio: metti un timer di dieci minuti.", "I didn't catch how long or at what time. Tell me, for example: set a timer for ten minutes.")
         if call.name == "CALCOLA":                                              # «controlla se funziona» -> [[CALCOLA: 10 - 0]]: un calcolo che nessuno ha chiesto
             want = {int(n) for n in re.findall(r"\d+", call.arg)}
             said = {int(n) for n in re.findall(r"\d+", t)}
             for w in t.split():
-                v = intent.number_it(w)
+                v = intent.number_it(w) if not i18n.is_en() else intent_en.number_en(w)
                 if v is not None:
                     said.add(v)
             if not want or not want <= said:
-                return "Che calcolo vuoi che faccia? Dimmi i numeri, ad esempio: quanto fa dodici per sette."
-        if call.name == "RICORDA" and not re.search(r"\b(?:ricord\w*|segnat\w*|tieni a mente|non dimenticare|memorizza\w*|annota\w*|appunta\w*)\b", t):
-            return "Se vuoi che me lo ricordi dimmelo così: ricordati che, e poi quello che vuoi."
+                return i18n.pick("Che calcolo vuoi che faccia? Dimmi i numeri, ad esempio: quanto fa dodici per sette.", "What should I calculate? Tell me the numbers, for example: what is twelve times seven.")
+        if call.name == "RICORDA" and not re.search(r"\b(?:ricord\w*|segnat\w*|tieni a mente|non dimenticare|memorizza\w*|annota\w*|appunta\w*|remember|note|keep in mind|don t forget|memorize|write down|jot down|make a note)\b", t):
+            return i18n.pick("Se vuoi che me lo ricordi dimmelo così: ricordati che, e poi quello che vuoi.", "If you want me to remember it, say it like this: remember that, and then whatever you want.")
         return None
 
     def _workspace_files(self) -> list[str] | None:
@@ -1092,11 +1156,12 @@ class Aria:
                 target = intent.convert_target(last_user)
                 if target and target != self._last_power.name and self._last_power.name in ("EVENTO", "PROMEMORIA"):
                     pre = ToolCall(target, self._last_power.arg)
-                    convert_note = "L'evento che avevo messo prima resta in calendario: toglilo tu, se non ti serve." if target == "PROMEMORIA" else "Il promemoria di prima resta: toglilo tu, se non ti serve."
+                    convert_note = (i18n.pick("L'evento che avevo messo prima resta in calendario: toglilo tu, se non ti serve.", "The event I added before stays in the calendar: remove it yourself if you don't need it.") if target == "PROMEMORIA"
+                                    else i18n.pick("Il promemoria di prima resta: toglilo tu, se non ti serve.", "The earlier reminder stays: remove it yourself if you don't need it."))
                 rep = intent.replace_words(last_user)
                 if pre is None and rep and rep[0].lower() in self._last_power.arg.lower():
                     pre = ToolCall(self._last_power.name, re.sub(re.escape(rep[0]), rep[1], self._last_power.arg, count=1, flags=re.I))
-                    convert_note = "Quello di prima non lo so cancellare: resta, toglilo tu dall'app."
+                    convert_note = i18n.pick("Quello di prima non lo so cancellare: resta, toglilo tu dall'app.", "I can't delete the earlier one: it stays, remove it yourself from the app.")
         if pre is None and (kind_save := intent.is_save_reply(last_user)):                    # «scrivimi tutta la ricetta in un file», «mettilo nella cartella»: salva QUELLO DI CUI STATE PARLANDO
             import json as _json
             past = self.history[:-1] if self.history and self.history[-1]["role"] == "user" and self.history[-1]["content"] == last_user else self.history
@@ -1107,7 +1172,7 @@ class Aria:
                 pre = ToolCall("SALVA", _json.dumps({"kind": kind_save, "request": last_user, "source": last_long or "",
                                                     "history": [{"role": m["role"], "content": m["content"][:1800]} for m in earlier[-8:]]}, ensure_ascii=False))
             else:                                                                           # non c'e' niente da salvare: lo dice, non promette
-                guard = "Non ho ancora niente da mettere in un file. Dimmi di cosa lo vuoi, ad esempio: scrivimi la ricetta degli gnocchi alla romana in un file."
+                guard = i18n.pick("Non ho ancora niente da mettere in un file. Dimmi di cosa lo vuoi, ad esempio: scrivimi la ricetta degli gnocchi alla romana in un file.", "I don't have anything to put in a file yet. Tell me what it should be about, for example: write me the recipe for carbonara in a file.")
                 log.info("richiesta di file senza argomento: %r", last_user)
                 self.history.append({"role": "assistant", "content": guard})
                 yield "sentence", guard
@@ -1124,7 +1189,7 @@ class Aria:
             if pre is None:
                 guard = intent.not_understood(domain) if domain else None                       # altrimenti lo dice onestamente, non lascia inventare al chatbot
                 if guard is None and self._last_power is not None and intent.replace_words(last_user):
-                    guard = "Cambiare quello che ho già creato non so farlo. Dimmelo da capo, completo, e ne creo uno nuovo."
+                    guard = i18n.pick("Cambiare quello che ho già creato non so farlo. Dimmelo da capo, completo, e ne creo uno nuovo.", "I can't change what I already created. Tell me again from the start, in full, and I'll create a new one.")
             if guard:
                 log.info("richiesta d'azione non capita: %r", last_user)
                 self.history.append({"role": "assistant", "content": guard})
@@ -1134,7 +1199,7 @@ class Aria:
             if pre.name in SLOW_TOOLS and (pre.name not in NEEDS_FOLDER or self.tools._ws() is not None) and (pre.arg.split("|")[-1].strip() or pre.name in ("BRIEFING", "SCHERMO")) \
                     and (pre.name != "SCHERMO" or getattr(self.tools, "_screen_engine", lambda: None)()):
                 yield "tool_start", pre
-                yield "sentence", random.choice(WORKING_DOC if pre.name in ("SCRIVI", "SALVA") else WORKING_SCREEN if pre.name == "SCHERMO" else WORKING)                # lavora qualche secondo: intanto lo dice
+                yield "sentence", random.choice(_working("doc" if pre.name in ("SCRIVI", "SALVA") else "screen" if pre.name == "SCHERMO" else ""))                # lavora qualche secondo: intanto lo dice
             else:
                 yield "tool_start", pre
             result = await self._run_tool(pre)
@@ -1155,7 +1220,7 @@ class Aria:
                 return
             if pre.name == "LISTA":
                 self._list_ctx = (pre.arg.split("|")[0], self._turn_no)
-            if pre.name in ("EVENTO", "PROMEMORIA", "LISTA", "NOTA") and result.startswith(("Fatto", "Va bene", "Ok", "Aggiunto", "Nota")):
+            if pre.name in ("EVENTO", "PROMEMORIA", "LISTA", "NOTA") and result.startswith(("Fatto", "Va bene", "Ok", "Aggiunto", "Nota", "Done", "All right", "Okay", "Added", "Note")):
                 self._last_power = pre                                                           # ricorda cosa ha appena creato
             if pre.name == "CERCA":
                 self._last_query = pre.arg
@@ -1239,8 +1304,8 @@ class Aria:
                         if hit or gov.done:
                             break
                 if not spoken and claimed:                                      # aveva solo detto di aver fatto qualcosa che non ha fatto: lo dice onestamente
-                    spoken.append(style.NOT_UNDERSTOOD)
-                    yield "sentence", style.NOT_UNDERSTOOD
+                    spoken.append(style.not_understood())
+                    yield "sentence", style.not_understood()
                 self.history.append({"role": "assistant", "content": " ".join(spoken).strip()})
                 return
             for s in chunker.flush():
@@ -1249,7 +1314,7 @@ class Aria:
             yield "tool_start", call
             if call.name not in MODEL_TOOLS:                                    # file e Mac partono solo da una richiesta dell'utente
                 log.warning("il chatbot ha provato a lanciare %s: rifiutato", call.name)
-                result = REFUSED
+                result = i18n.pick(REFUSED, REFUSED_EN)
             elif (why := self._ungrounded(call, last_user)) is not None:         # il chatbot si e' inventato i dati (un timer di 10:00 «per il caffe'» mai chiesto)
                 log.warning("il chatbot ha lanciato %s(%s) senza che l'utente l'avesse chiesto: rifiutato", call.name, call.arg)
                 self.history.append({"role": "assistant", "content": why})
@@ -1271,7 +1336,7 @@ class Aria:
                     yield ev
                 return
             messages = messages + self._tool_followup(call, result)
-        yield "sentence", "Scusa, mi sono incartata."
+        yield "sentence", i18n.pick("Scusa, mi sono incartata.", "Sorry, I got tangled up.")
 
     async def respond(self):
         """Parla la risposta. Se l'utente interrompe, ferma tutto e restituisce i frame gia' catturati."""
@@ -1642,21 +1707,22 @@ class Aria:
             log.info("MEMORIA: genere = %s", gender)
         short = len(text.split()) <= 7
         if pending and learn.is_decline(text):
-            return "Va bene, nessun problema.", None
+            return i18n.pick("Va bene, nessun problema.", "Okay, no problem."), None
         old_name = mem.get_profile("name")
         denied = learn.parse_name_denial(text)
         if denied and old_name and denied.lower() == old_name.lower():
             mem.del_profile("name")
             self.pending = "name"
-            return "Scusa, ho capito male. Come ti chiami?", None
+            return i18n.pick("Scusa, ho capito male. Come ti chiami?", "Sorry, I got that wrong. What's your name?"), None
         ack = rewrite = None
         name = learn.parse_name(text, expect=(pending == "name"))
         if name:
             mem.set_profile("name", name)
             log.info("MEMORIA: nome = %s", name)
-            self._hint = f"Si è appena presentato: si chiama {name}."
+            self._hint = i18n.pick(f"Si è appena presentato: si chiama {name}.", f"They just introduced themselves: their name is {name}.")
             if short or pending == "name":
-                ack = f"Piacere, {name}!" + (" Aggiornato." if old_name and old_name != name else " Se ho capito male il nome, correggimi pure.")
+                ack = i18n.pick(f"Piacere, {name}!" + (" Aggiornato." if old_name and old_name != name else " Se ho capito male il nome, correggimi pure."),
+                                f"Nice to meet you, {name}!" + (" Updated." if old_name and old_name != name else " If I got the name wrong, just correct me."))
         old_city = mem.get_profile("city")
         denied = learn.parse_city_denial(text)
         if denied and old_city and denied.lower() == old_city.lower():
@@ -1665,11 +1731,11 @@ class Aria:
         if city:
             mem.set_profile("city", city)
             log.info("MEMORIA: città = %s", city)
-            self._hint = (self._hint + " " if self._hint else "") + f"Ha detto che abita a {city}."
+            self._hint = (self._hint + " " if self._hint else "") + i18n.pick(f"Ha detto che abita a {city}.", f"They said they live in {city}.")
             if self._weather_day and pending == "city":
-                rewrite, self._weather_day = f"che tempo fa {self._weather_day}", None
+                rewrite, self._weather_day = i18n.pick(f"che tempo fa {self._weather_day}", f"what's the weather {self._weather_day}"), None
             elif short or pending == "city":
-                ack = ack or f"{city}, bene. Me la segno."
+                ack = ack or i18n.pick(f"{city}, bene. Me la segno.", f"{city}, nice. I'll note it down.")
         if pending == "city" and not city:
             self._weather_day = None
         for f in learn.extract(text):
@@ -1710,7 +1776,7 @@ class Aria:
         if any(style.detect_mood(t) in ("triste", "ansioso", "arrabbiato", "malato", "insonnia", "stanco") for t in recent) or hour >= 23 or hour < 6:
             return                                                              # una domanda personale non si fa a chi e' giu', agitato o sveglio a notte fonda
         now = time.time()
-        for what, phrases in (("name", ASK_NAME), ("city", ASK_CITY)):
+        for what, phrases in (("name", ASK_NAME_EN if i18n.is_en() else ASK_NAME), ("city", ASK_CITY_EN if i18n.is_en() else ASK_CITY)):
             if self.memory.get_profile(what):
                 continue
             n, last = self.memory.times_asked(what)
@@ -1724,11 +1790,11 @@ class Aria:
 
     async def _ask_city_for_weather(self, arg: str):
         """Il meteo serve ma non si sa dove abita: lo chiede e, appena risponde, rifa' la domanda del meteo."""
-        self._weather_day = "domani" if "domani" in arg.lower() else "oggi"
+        self._weather_day = (("tomorrow" if "tomorrow" in arg.lower() else "today") if i18n.is_en() else ("domani" if "domani" in arg.lower() else "oggi"))
         self.pending = "city"
         if self.memory:
             self.memory.mark_asked("city")
-        msg = "Per dirti che tempo fa mi serve la città: dove abiti?"
+        msg = i18n.pick("Per dirti che tempo fa mi serve la città: dove abiti?", "To tell you the weather I need the city: where do you live?")
         self.history.append({"role": "assistant", "content": msg})
         yield "sentence", msg
 
@@ -1741,8 +1807,8 @@ class Aria:
 
     def _brain_down_message(self) -> str:
         if any((b.get("llm") or {}).get("kind") == "mlx-lm" for b in self.router.brains):
-            return "Scusa, non riesco a pensare adesso. Controlla nelle Impostazioni che il chatbot sia scaricato."
-        return "Scusa, non riesco a pensare adesso. Controlla che Ollama sia acceso."
+            return i18n.pick("Scusa, non riesco a pensare adesso. Controlla nelle Impostazioni che il chatbot sia scaricato.", "Sorry, I can't think right now. Check in Settings that the chatbot has been downloaded.")
+        return i18n.pick("Scusa, non riesco a pensare adesso. Controlla che Ollama sia acceso.", "Sorry, I can't think right now. Check that Ollama is running.")
 
     async def _revive(self, stage: str) -> bool:
         """Nessun chatbot risponde: se e' Ollama (locale) lo riapre e aspetta che sia pronto."""
@@ -1750,7 +1816,7 @@ class Aria:
         if stage != "llm" or not any(ollama.is_local((b.get("llm") or {}).get("base_url")) for b in self.router.brains):
             return False
         try:
-            pcm, sr = await self.router.synthesize("Un attimo, sto svegliando il mio cervello.")
+            pcm, sr = await self.router.synthesize(i18n.pick("Un attimo, sto svegliando il mio cervello.", "One moment, I'm waking up my brain."))
             self.speaker.play(pcm, sr)
         except Exception:                                            # noqa: BLE001
             pass
@@ -1760,10 +1826,13 @@ class Aria:
         """A fine conversazione: chiede al modello fatti durevoli sull'utente + un riassunto di una riga."""
         if not self.cfg.get("memory", {}).get("auto_extract", False):    # spento: il modello piccolo inventava nomi e luoghi ("Luca", "Roma")
             return
-        convo = "\n".join(f"{'Utente' if m['role'] == 'user' else 'Aria'}: {m['content']}" for m in history[-12:])
-        prompt = ("Leggi questa conversazione. Scrivi, una per riga, fino a 3 informazioni DUREVOLI sull'utente "
-                  "(nome, famiglia, gusti, impegni, progetti) con il prefisso 'FATTO: '. Se non ce ne sono, nessuna riga FATTO. "
-                  "Poi una riga 'RIASSUNTO: ' di massimo 15 parole su cosa vi siete detti.\n\n" + convo)
+        convo = "\n".join(f"{('User' if i18n.is_en() else 'Utente') if m['role'] == 'user' else 'Aria'}: {m['content']}" for m in history[-12:])
+        prompt = (i18n.pick("Leggi questa conversazione. Scrivi, una per riga, fino a 3 informazioni DUREVOLI sull'utente "
+                            "(nome, famiglia, gusti, impegni, progetti) con il prefisso 'FATTO: '. Se non ce ne sono, nessuna riga FATTO. "
+                            "Poi una riga 'RIASSUNTO: ' di massimo 15 parole su cosa vi siete detti.",
+                            "Read this conversation. Write, one per line, up to 3 LASTING facts about the user "
+                            "(name, family, tastes, commitments, projects) with the prefix 'FATTO: '. If there are none, no FATTO line. "
+                            "Then one line 'RIASSUNTO: ' of at most 15 words about what you talked about.") + "\n\n" + convo)
         try:
             out = "".join([t async for t in self.router.llm_stream([{"role": "user", "content": prompt}])])
         except Exception as e:                                       # noqa: BLE001

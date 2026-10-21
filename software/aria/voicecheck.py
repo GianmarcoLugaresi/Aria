@@ -5,10 +5,12 @@ from __future__ import annotations
 import difflib
 import re
 
+from . import i18n
 from .speech import num_words
 from .textutil import normalize
 
-_FILLERS = {"ah", "beh", "eh", "mmh", "mmm", "mm", "oh", "boh", "uhm", "ehm", "ehi", "ahah", "ahaha", "uh", "eeh", "ahh", "ooh", "mah", "uff", "wow"}
+_FILLERS = {"ah", "beh", "eh", "mmh", "mmm", "mm", "oh", "boh", "uhm", "ehm", "ehi", "ahah", "ahaha", "uh", "eeh", "ahh", "ooh", "mah", "uff", "wow",
+             "um", "umm", "hmm", "hm", "mhm", "erm", "er", "huh", "aw", "aww"}
 
 
 def _tokens(text: str, name: str | None = None) -> list[str]:
@@ -47,6 +49,7 @@ def score(expected: str, heard: str, name: str | None = None) -> tuple[bool, flo
     return ok, round(recall - 0.3 * len(missing_tail), 3), missing_tail
 
 
+_BREAK_EN = {"and", "that", "but", "because", "so", "then", "with", "for", "if", "when", "while", "where", "how", "also", "or", "without", "until", "which", "who", "to", "of", "in", "on", "at", "as", "since", "though", "although"}
 _BREAK = {"e", "che", "ma", "perché", "perche", "quindi", "poi", "così", "cosi", "con", "per", "se", "quando", "mentre", "dove", "come", "finché", "finche", "anche", "oppure", "senza", "fino"}
 
 
@@ -60,7 +63,7 @@ def split_long(text: str, maxc: int = 52) -> list[str]:
     for i in range(2, len(words) - 1):
         cum = len(" ".join(words[:i]))
         strong = words[i - 1][-1:] in ",;:.!?…"
-        if not strong and words[i].lower().strip(",;:") not in _BREAK:
+        if not strong and words[i].lower().strip(",;:") not in (_BREAK_EN if i18n.is_en() else _BREAK):
             continue
         cost = abs(cum - (len(text) - cum)) + (0 if strong else 14)
         if cost < best_cost:

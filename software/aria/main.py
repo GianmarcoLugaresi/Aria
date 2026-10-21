@@ -12,7 +12,8 @@ from .display import serve_display
 from .leds import make_leds
 from .llm import OpenAILLM, make_llm
 from .memory import Memory
-from .persona import build_system, load_persona
+from . import i18n
+from .persona import build_system, load_persona, load_persona_for
 from .router import Router
 from .state import Hub
 from .stt import make_stt
@@ -22,11 +23,11 @@ from .vad import make_vad
 
 
 def _voice_file(cfg: dict) -> str:
-    return os.path.join(cfg["data_dir"], "voce.txt")
+    return os.path.join(cfg["data_dir"], "voce.en.txt" if i18n.is_en() else "voce.txt")                   # una voce scelta per lingua: «lola» in italiano non e' quella giusta per l'inglese
 
 
 def _natural_voice_file(cfg: dict) -> str:
-    return os.path.join(cfg["data_dir"], "voce_naturale.txt")
+    return os.path.join(cfg["data_dir"], "voce_naturale.en.txt" if i18n.is_en() else "voce_naturale.txt")
 
 
 def _restore_voice(cfg: dict, hub: Hub) -> None:
@@ -50,8 +51,15 @@ def _restore_voice(cfg: dict, hub: Hub) -> None:
             t["voice"] = name
         if natural and t.get("kind") == "natural":
             t["voice_natural"] = natural
-    if name:
-        hub.set_info(voice=name)
+    shown = name
+    if not shown:                                                       # nessuna scelta salvata: il menu segna comunque la voce di fabbrica
+        for b in cfg["brains"]:
+            t = b.get("tts", {})
+            if t.get("kind") == "pocket" and t.get("voice"):
+                shown = t["voice"]
+                break
+    if shown:
+        hub.set_info(voice=shown)
 
     def save(cmd: dict) -> None:
         if cmd.get("cmd") == "voice" and cmd.get("name"):
@@ -172,7 +180,7 @@ def build(cfg: dict, config_path: str | None):
     memory = Memory(os.path.join(cfg["data_dir"], "memoria.db")) if cfg["memory"]["enabled"] else None
     bases = [os.path.dirname(os.path.abspath(config_path))] if config_path else []
     bases += [os.getcwd(), os.path.join(os.path.dirname(__file__), "..")]
-    persona = load_persona(cfg["persona_file"], bases)
+    persona = load_persona_for(cfg, bases, config_path)
     router = Router(cfg["brains"], factory)
     return hub, memory, persona, router
 
@@ -194,6 +202,13 @@ def _make_mic(a: dict):
     if sys.platform == "darwin" and a.get("voice_processing", True) and a["input_rate"] == 16000 and a.get("input_device") is None and os.path.exists(vpmic_path()):
         return VoiceMic(a["input_device"], a["input_rate"])
     return Mic(a["input_device"], a["input_rate"])
+
+def _timer_message(label: str) -> str:
+    """Cosa dice Aria quando un timer scade (o un «ricordami tra dieci minuti di…»)."""
+    if i18n.is_en():
+        return f"Reminder: {label}." if label.startswith(("to ", "that ")) else f"Your {label} timer is up."
+    return f"Ti ricordo {label}." if label.startswith("di ") else f"Il timer {label} è scaduto."
+
 
 async def run_voice(cfg, config_path, dev: bool, no_display: bool):
     asyncio.get_running_loop().run_in_executor(None, _ensure_ollama_bg, cfg)
@@ -217,7 +232,7 @@ async def run_voice(cfg, config_path, dev: bool, no_display: bool):
     else:
         wake = KeyboardWake() if (dev and not cfg["wake"]["model_path"]) or mode == "keyboard" else make_wake(cfg["wake"])
     aria_ref: dict = {}
-    tools = Tools(cfg, memory, on_timer=lambda label: aria_ref["a"].announce(f"Ti ricordo {label}." if label.startswith("di ") else f"Il timer {label} è scaduto."))
+    tools = Tools(cfg, memory, on_timer=lambda label: aria_ref["a"].announce(_timer_message(label)))
     aria = Aria(cfg, hub, mic, speaker, wake, make_vad(cfg["vad"]["kind"]), router, tools, memory, persona)
     if not fake:
         from .vad import make_idle_vad

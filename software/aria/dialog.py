@@ -9,6 +9,7 @@ import datetime as dt
 import random
 import re
 
+from . import dialog_en, i18n
 from .textutil import normalize
 
 _NAME = r"(?:\s+aria)?"
@@ -252,3 +253,27 @@ def looks_unfinished(text: str) -> bool:
         return False
     last = normalize(t).split()[-1] if normalize(t).split() else ""
     return last in _TRAILING
+
+
+# ---- l'inglese: le stesse funzioni, con le regole e le frasi di dialog_en.py (la lingua si sceglie nelle Impostazioni, vedi i18n.py)
+def _dispatch(name: str):
+    it = globals()[name]
+    en = getattr(dialog_en, name)
+
+    def f(*a, **k):
+        return (en if i18n.is_en() else it)(*a, **k)
+    f.__name__, f.__doc__ = name, it.__doc__
+    return f
+
+
+for _n in ("is_greeting", "is_farewell", "is_dismissal", "voice_request", "is_thanks", "is_ack", "is_laugh", "is_presence_check", "is_apology", "is_repeat_request", "complaint_kind",
+           "presence_reply", "apology_reply", "thanks_reply", "complaint_reply", "laugh_reply", "repeat_reply", "unclear_reply", "farewell_reply", "greeting_and_name", "greeting", "looks_unfinished"):
+    globals()[_n] = _dispatch(_n)
+
+
+def dismiss_replies() -> list[str]:
+    return dialog_en.DISMISS_REPLIES if i18n.is_en() else DISMISS_REPLIES
+
+
+def unclear_list() -> list[str]:
+    return dialog_en.UNCLEAR if i18n.is_en() else UNCLEAR

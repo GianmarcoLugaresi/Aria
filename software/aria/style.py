@@ -10,7 +10,7 @@ import random
 import re
 import zlib
 
-from . import rhythm
+from . import i18n, rhythm, style_en
 from .textutil import normalize
 
 _MOODS: list[tuple[str, re.Pattern, str]] = [
@@ -179,7 +179,9 @@ _ASSISTANT_TAIL = re.compile(r"\s*(?:facci|fammi|dimmi se)\s+(?:sapere\s+)?se\s+
 def strip_markdown(text: str) -> str:
     """Elenchi puntati, grassetti, titoli: a voce non si leggono. Via i simboli; le voci di un elenco diventano frasi."""
     t = re.sub(r"(?<![\w*])\*(?!\*)[^*\n]{18,}?(?<!\*)\*(?![\w*])", " ", text)       # «*La voce si abbassa, calda e morbida*»: una didascalia, non si dice (le enfasi sono di 1-3 parole)
-    t = re.sub(r"\((?:[^()\n]{0,3}\s)?(?:sorride|ride|sospira|annuisce|ridacchia|pausa|silenzio|con voce|in tono|a bassa voce|sottovoce)[^()\n]*\)", " ", t, flags=re.I)
+    t = re.sub(r"\((?:[^()\n]{0,3}\s)?(?:sorride|ride|sospira|annuisce|ridacchia|pausa|silenzio|con voce|in tono|a bassa voce|sottovoce|smiles|laughs|sighs|nods|chuckles|pauses|silence|in a tone|softly|quietly)[^()\n]*\)", " ", t, flags=re.I)
+    t = re.sub(r"(?<![\w*])\*(?!\*)\s*(?:smiles|laughs|sighs|nods|chuckles|pauses|grins|winks|shrugs|giggles|blushes|hums|whispers|sniffs|waves|clears (?:my |her |his )?throat|"
+               r"sorride|ride|sospira|annuisce|ridacchia|pausa|ammicca|sussurra|scrolla le spalle)\b[^*\n]{0,30}\*(?![\w*])", " ", t, flags=re.I)         # *smiles*, *sorride*: azioni di scena, non parole
     t = re.sub(r"\*\*|__|`", "", t)
     t = re.sub(r"(?<![\w*])\*(?!\*)([^*\n]+?)(?<!\*)\*(?![\w*])", r"\1", t)                   # *enfasi* -> enfasi
     t = re.sub(r"(?m)^\s*#+\s*", "", t)
@@ -294,3 +296,22 @@ def drop_fabrications(chunk: str, user_text: str) -> str:
             continue
         out.append(sent)
     return " ".join(out)
+
+
+# ---- l'inglese: le stesse funzioni, con le regole e le frasi di style_en.py (la lingua si sceglie nelle Impostazioni, vedi i18n.py)
+def _dispatch(name: str):
+    it = globals()[name]
+    en = getattr(style_en, name)
+
+    def f(*a, **k):
+        return (en if i18n.is_en() else it)(*a, **k)
+    f.__name__, f.__doc__ = name, it.__doc__
+    return f
+
+
+for _n in ("long_kind", "detect_mood", "mood_hint", "session_tone", "turn_hint", "clean_reply", "polish", "wants_facts", "has_false_claim", "drop_fabrications"):
+    globals()[_n] = _dispatch(_n)
+
+
+def not_understood() -> str:
+    return style_en.NOT_UNDERSTOOD if i18n.is_en() else NOT_UNDERSTOOD

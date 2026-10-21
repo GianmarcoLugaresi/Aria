@@ -25,16 +25,29 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>Aria</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.3.1</string>
-  <key>CFBundleVersion</key><string>4</string>
+  <key>CFBundleShortVersionString</key><string>0.4.0</string>
+  <key>CFBundleVersion</key><string>5</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleLocalizations</key><array><string>en</string><string>it</string></array>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSAppleEventsUsageDescription</key><string>Aria controlla Promemoria, Calendario, Musica e le tue Scorciatoie solo quando glielo chiedi a voce.</string>
-  <key>NSMicrophoneUsageDescription</key><string>Aria ascolta la tua voce per risponderti. L'audio resta sul tuo Mac e non viene inviato a nessuno.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Aria controls Reminders, Calendar, Music and your Shortcuts only when you ask her out loud.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Aria listens to your voice to answer you. The audio stays on your Mac and is not sent to anyone.</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
 </dict></plist>
 PLIST
+
+# I testi che macOS mostra nelle richieste di permesso seguono la lingua del Mac: inglese di fabbrica (Info.plist), italiano per chi ha il Mac in italiano.
+mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/it.lproj"
+cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
+"NSAppleEventsUsageDescription" = "Aria controls Reminders, Calendar, Music and your Shortcuts only when you ask her out loud.";
+"NSMicrophoneUsageDescription" = "Aria listens to your voice to answer you. The audio stays on your Mac and is not sent to anyone.";
+STRINGS
+cat > "$APP/Contents/Resources/it.lproj/InfoPlist.strings" <<'STRINGS'
+"NSAppleEventsUsageDescription" = "Aria controlla Promemoria, Calendario, Musica e le tue Scorciatoie solo quando glielo chiedi a voce.";
+"NSMicrophoneUsageDescription" = "Aria ascolta la tua voce per risponderti. L'audio resta sul tuo Mac e non viene inviato a nessuno.";
+STRINGS
 
 # Firma. Con la firma «ad hoc» l'identita' dell'app e' l'impronta del file: a OGNI ricompilazione macOS la considera un'app nuova e i permessi
 # (microfono, Registrazione schermo, Accessibilita') vanno ridati, anche se nelle Impostazioni Aria sembra ancora attiva.

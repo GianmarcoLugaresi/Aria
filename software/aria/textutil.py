@@ -209,8 +209,12 @@ def _matches(text: str, phrase: str, threshold: float) -> bool:
 
 
 STOP_WORDS = {"stop", "basta", "zitta", "silenzio", "fermati", "taci", "ok basta", "basta cosi"}
+STOP_WORDS_EN = {"stop", "enough", "quiet", "silence", "be quiet", "shut up", "hush", "that s enough", "ok stop", "okay stop", "ok enough", "okay enough", "stop it", "stop talking", "that will do", "shush"}
 
 
 def is_stop_command(text: str) -> bool:
+    from . import i18n
     t = normalize(text)
+    if i18n.is_en():
+        return t in STOP_WORDS_EN or any(t.startswith(w + " ") and len(t.split()) <= 3 for w in ("stop", "enough", "quiet", "hush"))
     return t in STOP_WORDS or any(t.startswith(w + " ") and len(t.split()) <= 3 for w in ("stop", "basta", "zitta"))

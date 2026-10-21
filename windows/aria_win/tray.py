@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from . import paths, win32
+from .l10n import tr
 from .model import AppModel
 
 ICON_SIZE = 64
@@ -25,7 +26,7 @@ def make_icon_image(model: AppModel):
 
 class Tray:
     def __init__(self, model: AppModel, actions: dict):
-        """actions: wake, stop, set_voice(name), toggle_mute, toggle_autostart, pick_folder, open_config, open_persona, open_logs, quit."""
+        """actions: wake, stop, set_voice(name), set_language(code), toggle_mute, toggle_autostart, pick_folder, open_config, open_persona, open_logs, quit."""
         self.model, self.actions = model, actions
         self.icon = None
 
@@ -33,28 +34,35 @@ class Tray:
         from pystray import Menu, MenuItem as Item
         a, m = self.actions, self.model
 
-        def voice_item(name: str):                                  # (pystray conta i parametri delle funzioni: niente parametri con valore di default)
-            return Item(name.capitalize(), lambda: a["set_voice"](name), checked=lambda _it: m.voice == name, radio=True)
-        voices = []
-        for title, names in m.voice_groups():
-            voices.append(Item(title, None, enabled=False))
-            voices.extend(voice_item(n) for n in names)
-            voices.append(Menu.SEPARATOR)
+        def voice_items():                                          # (un menu che si ricostruisce da solo: cambiando lingua cambiano le voci e i titoli)
+            out = []
+            for title, names in m.voice_groups():
+                out.append(Item(title, None, enabled=False))
+                out.extend(Item(n.capitalize(), (lambda *_, n=n: a["set_voice"](n)), checked=(lambda _it, n=n: m.voice == n), radio=True) for n in names)
+                out.append(Menu.SEPARATOR)
+            return tuple(out)
+
+        def language_item(code: str, text):
+            return Item(text, (lambda *_, code=code: a["set_language"](code)), checked=(lambda _it, code=code: m.language_choice == code), radio=True)
         return Menu(
-            Item(lambda _it: f"{m.wake_label()}   ({m.hotkey})", lambda *_: a["stop"]() if m.state != "idle" else a["wake"](), default=True),
+            Item(lambda _it: f"{m.wake_label()}   ({m.hotkey_text()})", lambda *_: a["stop"]() if m.state != "idle" else a["wake"](), default=True),
             Menu.SEPARATOR,
             Item(lambda _it: m.status_text(), None, enabled=False),
             Menu.SEPARATOR,
-            Item("Voce", Menu(*voices[:-1])),
-            Item(lambda _it: f"Silenzia il microfono (niente «{m.wake_phrase}»)", lambda *_: a["toggle_mute"](), checked=lambda _it: m.muted),
-            Item("Avvia con Windows", lambda *_: a["toggle_autostart"](), checked=lambda _it: m.autostart),
+            Item(lambda _it: m.labels()["voice"], Menu(voice_items)),
+            Item(lambda _it: m.labels()["language"], Menu(
+                language_item("auto", lambda _it: m.labels()["lang_auto"]),
+                language_item("it", "Italiano"),
+                language_item("en", "English"))),
+            Item(lambda _it: m.labels()["mute"], lambda *_: a["toggle_mute"](), checked=lambda _it: m.muted),
+            Item(lambda _it: m.labels()["autostart"], lambda *_: a["toggle_autostart"](), checked=lambda _it: m.autostart),
             Menu.SEPARATOR,
-            Item("Cartella di Aria…", lambda *_: a["pick_folder"]()),
-            Item("Apri la configurazione", lambda *_: a["open_config"]()),
-            Item("Apri il carattere (persona.md)", lambda *_: a["open_persona"]()),
-            Item("Mostra i log", lambda *_: a["open_logs"]()),
+            Item(lambda _it: m.labels()["folder"], lambda *_: a["pick_folder"]()),
+            Item(lambda _it: m.labels()["config"], lambda *_: a["open_config"]()),
+            Item(lambda _it: m.labels()["persona"], lambda *_: a["open_persona"]()),
+            Item(lambda _it: m.labels()["logs"], lambda *_: a["open_logs"]()),
             Menu.SEPARATOR,
-            Item("Esci da Aria", lambda *_: a["quit"]()),
+            Item(lambda _it: m.labels()["quit"], lambda *_: a["quit"]()),
         )
 
     def start(self) -> None:
@@ -70,7 +78,7 @@ class Tray:
             self.icon.icon = make_icon_image(self.model)
             self.icon.update_menu()
         except Exception as e:                                                          # noqa: BLE001
-            paths.log(f"icona: non riesco ad aggiornarla ({e})")
+            paths.log(tr(f"icona: non riesco ad aggiornarla ({e})", f"icon: I can't update it ({e})"))
 
     def stop(self) -> None:
         if self.icon is not None:

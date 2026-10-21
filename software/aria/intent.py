@@ -11,6 +11,7 @@ import datetime as dt
 import os
 import re
 
+from . import i18n, intent_en
 from .phrasing import canonical
 from .textutil import ToolCall, normalize
 from .tools import it_number, parse_duration
@@ -815,7 +816,7 @@ def list_followup(text: str, which: str) -> ToolCall | None:
 _SYS_INFO = [
     (re.compile(r"\b(?:quanta batteria|batteria (?:ho|c e|rimane|resta|mi resta|e carica)|livello (?:della |di )?batteria|quanta carica|sono sotto carica|si sta caricando|il mac si sta caricando|e sotto carica|percentuale (?:della )?batteria)\b"), "batteria"),
     (re.compile(r"\b(?:quanto spazio (?:libero |disponibile )?(?:ho|c e|rimane|mi rimane|resta|mi resta)|spazio (?:libero|disponibile|sul disco|rimasto)|disco (?:pieno|libero)|quanto e pieno il disco|quanta memoria di archiviazione)\b"), "spazio"),
-    (re.compile(r"\b(?:che versione di macos|quale versione di macos|versione di macos|che macos ho|quale macos)\b"), "versione"),
+    (re.compile(r"\b(?:che versione di macos|quale versione di macos|versione di macos|che macos ho|quale macos|che versione di windows|quale versione di windows|versione di windows|che windows ho|quale windows)\b"), "versione"),
     (re.compile(r"\b(?:da quanto (?:tempo )?(?:e acceso|sei accesa|sei accesso)|da quanto tempo e acceso il (?:mac|computer)|uptime)\b"), "accensione"),
     (re.compile(r"\b(?:a che wifi|a quale wifi|a quale rete|nome del wifi|nome della rete|sono collegato al wifi|che wifi ho|che rete wifi)\b"), "wifi"),
     (re.compile(r"\b(?:sono (?:connesso|collegato|online)|siamo (?:connessi|collegati|online)|c e (?:la )?(?:connessione|internet|rete)|funziona (?:internet|la rete|il wifi)|ho internet|ho la connessione|internet funziona|sono su internet|ho la rete)\b"), "wifi"),
@@ -1154,3 +1155,19 @@ def replace_words(text: str) -> tuple[str, str] | None:
     if not m:
         return None
     return raw[m.start(1):m.end(1)].strip(" ,.;:\"'"), raw[m.start(2):m.end(2)].strip(" ,.;:\"'")
+
+
+# ---- l'inglese: le stesse funzioni, con le regole di intent_en.py (la lingua si sceglie nelle Impostazioni, vedi i18n.py)
+def _dispatch(name: str):
+    it = globals()[name]
+    en = getattr(intent_en, name)
+
+    def f(*a, **k):
+        return (en if i18n.is_en() else it)(*a, **k)
+    f.__name__, f.__doc__ = name, it.__doc__
+    return f
+
+
+for _n in ("detect", "spoken_math", "parse_math", "screen_attempt", "screen_request", "file_request", "slot_cancelled", "merge_slot", "list_followup", "action_like", "file_attempt",
+           "request_like", "not_understood", "unmatched_action", "is_save_last", "is_save_reply", "convert_target", "replace_words"):
+    globals()[_n] = _dispatch(_n)

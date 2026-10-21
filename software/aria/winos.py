@@ -12,10 +12,16 @@ import time
 import urllib.parse
 from difflib import SequenceMatcher
 
+from . import i18n
 from .macos import Mac, MacError, _FILLER
 from .textutil import normalize
 
 NOT_ON_WINDOWS = "Su Windows questa funzione non c'è ancora."
+NOT_ON_WINDOWS_EN = "This feature isn't available on Windows yet."
+
+
+def _not_on_windows() -> str:
+    return i18n.pick(NOT_ON_WINDOWS, NOT_ON_WINDOWS_EN)
 
 # tasti virtuali di Windows
 VK_VOLUME_MUTE, VK_VOLUME_DOWN, VK_VOLUME_UP = 0xAD, 0xAE, 0xAF
@@ -30,7 +36,7 @@ WIN_ALIASES = {"browser": "edge", "internet": "edge", "calcolatrice": "calcolatr
 def press_key(vk: int, times: int = 1) -> None:
     """Preme un tasto virtuale (volume, multimedia) come farebbe la tastiera. Solo su Windows."""
     if sys.platform != "win32":
-        raise MacError(NOT_ON_WINDOWS)
+        raise MacError(_not_on_windows())
     user32 = ctypes.windll.user32                                                         # type: ignore[attr-defined]
     for _ in range(max(1, times)):
         user32.keybd_event(vk, 0, 0, 0)
@@ -60,18 +66,18 @@ class WinOS(Mac):
     @staticmethod
     def _shell_open(target: str) -> None:
         if sys.platform != "win32":
-            raise MacError(NOT_ON_WINDOWS)
+            raise MacError(_not_on_windows())
         os.startfile(target)                                                              # type: ignore[attr-defined]
 
     # ---------------------------------------------------------------- cose del Mac che qui non ci sono
     def osa(self, script: str, *args: str, timeout: float = 20.0, app: str = "") -> str:
-        raise MacError(NOT_ON_WINDOWS)
+        raise MacError(_not_on_windows())
 
     def shortcuts_list(self) -> list[str]:
-        raise MacError(NOT_ON_WINDOWS)
+        raise MacError(_not_on_windows())
 
     def shortcuts_run(self, name: str, timeout: float = 120.0) -> str:
-        raise MacError(NOT_ON_WINDOWS)
+        raise MacError(_not_on_windows())
 
     # ---------------------------------------------------------------- app e siti
     def apps(self) -> dict[str, str]:
@@ -114,22 +120,23 @@ class WinOS(Mac):
         try:
             self._open(name)
         except OSError:
-            raise MacError(f"Non sono riuscita ad aprire {os.path.splitext(os.path.basename(name))[0]}.")
+            nm = os.path.splitext(os.path.basename(name))[0]
+            raise MacError(i18n.pick(f"Non sono riuscita ad aprire {nm}.", f"I couldn't open {nm}."))
 
     def open_url(self, url: str) -> None:
         if urllib.parse.urlparse(url).scheme not in ("http", "https"):                    # ultima barriera: mai file:// o altri protocolli
-            raise MacError("Apro solo indirizzi web.")
+            raise MacError(i18n.pick("Apro solo indirizzi web.", "I only open web addresses."))
         try:
             self._open(url)
         except OSError:
-            raise MacError("Non sono riuscita ad aprire il sito.")
+            raise MacError(i18n.pick("Non sono riuscita ad aprire il sito.", "I couldn't open the website."))
 
     def open_music_search(self, app: str, query: str) -> None:
         q = urllib.parse.quote(query.strip()[:80], safe="")
         try:
             self._open(f"spotify:search:{q}")                                             # (se Spotify non c'e' installato Windows non sa cosa farne: errore chiaro)
         except OSError:
-            raise MacError("Non sono riuscita ad aprire la ricerca: serve l'app di Spotify.")
+            raise MacError(i18n.pick("Non sono riuscita ad aprire la ricerca: serve l'app di Spotify.", "I couldn't open the search: it needs the Spotify app."))
 
     # ---------------------------------------------------------------- volume
     def _endpoint(self):
@@ -146,14 +153,14 @@ class WinOS(Mac):
     def volume_get(self) -> int:
         ep = self._endpoint()
         if ep is None:
-            raise MacError("Non riesco a leggere il volume.")
+            raise MacError(i18n.pick("Non riesco a leggere il volume.", "I can't read the volume."))
         return int(round(float(ep.GetMasterVolumeLevelScalar()) * 100))
 
     def volume_set(self, n: int) -> int:
         n = max(0, min(100, int(n)))
         ep = self._endpoint()
         if ep is None:
-            raise MacError("Non riesco a cambiare il volume.")
+            raise MacError(i18n.pick("Non riesco a cambiare il volume.", "I can't change the volume."))
         ep.SetMasterVolumeLevelScalar(n / 100.0, None)
         return n
 

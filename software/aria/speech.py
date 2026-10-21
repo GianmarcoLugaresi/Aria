@@ -10,6 +10,8 @@ import re
 
 import numpy as np
 
+from . import i18n
+
 _U = ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci", "undici", "dodici", "tredici", "quattordici", "quindici",
       "sedici", "diciassette", "diciotto", "diciannove"]
 _T = ["", "", "venti", "trenta", "quaranta", "cinquanta", "sessanta", "settanta", "ottanta", "novanta"]
@@ -37,7 +39,10 @@ def _below_1000(n: int) -> str:
 
 
 def num_words(n: int) -> str:
-    """Un intero in parole italiane: 1985 -> «millenovecentottantacinque», 2026 -> «duemilaventisei», 1250000 -> «un milione duecentocinquantamila»."""
+    """Un intero in parole italiane: 1985 -> «millenovecentottantacinque», 2026 -> «duemilaventisei», 1250000 -> «un milione duecentocinquantamila» (in inglese: speech_en.num_words)."""
+    if i18n.is_en():
+        from . import speech_en
+        return speech_en.num_words(n)
     if n < 0:
         return "meno " + num_words(-n)
     if n < 100:
@@ -79,6 +84,9 @@ _MARKER_RE = re.compile(r"(^|[.!?…]\s+)((?:beh|mah|boh|dunque|insomma|vabbè|v
 
 
 def speechify(text: str) -> str:
+    if i18n.is_en():
+        from . import speech_en
+        return speech_en.speechify(text)
     t = text or ""
     t = re.sub(r"\*[^*\n]{1,60}\*", " ", t)                                          # *sorride*: azioni tra asterischi, non si dicono
     t = re.sub(r"\([^)\n]{0,120}\)", " ", t)                                         # (note tra parentesi)

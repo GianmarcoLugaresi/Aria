@@ -5,8 +5,10 @@ from __future__ import annotations
 import datetime as dt
 import random
 import re
+import sys
 from typing import Callable
 
+from . import i18n
 from .textutil import normalize
 
 # ------------------------------------------------------------------------------- numeri (anche con la virgola)
@@ -439,17 +441,18 @@ def help_text(powers: dict[str, bool] | None = None) -> str:
     def has(k: str) -> bool:
         return on.get(k, True)
     parts = ["Posso dirti che tempo fa, l'ora e la data, fare calcoli, conversioni e traduzioni, tirare un dado o una moneta, e ricordarti le cose con timer e sveglie"]
+    win = sys.platform == "win32"                                    # su Windows: promemoria di Aria (non l'app), niente calendario e niente schermo
     mac = []
-    if has("reminders") or has("calendar"):
-        mac.append("metterti promemoria ed eventi in calendario e dirti cosa hai in agenda")
+    if has("reminders") or (has("calendar") and not win):
+        mac.append("metterti dei promemoria e dirti quali hai" if win else "metterti promemoria ed eventi in calendario e dirti cosa hai in agenda")
     if has("music"):
         mac.append("controllare la musica e il volume")
     if has("apps"):
         mac.append("aprire app, siti e mappe")
     if mac:
-        parts.append("Sul Mac so " + ", ".join(mac))
+        parts.append(("Su questo PC so " if win else "Sul Mac so ") + ", ".join(mac))
     parts.append("Nella mia cartella scrivo documenti e ricerche, tengo le liste della spesa e le note, e rispondo a domande sui tuoi file")
-    if has("screen_mac") or has("screen_model"):
+    if (has("screen_mac") or has("screen_model")) and not win:
         parts.append("e posso guardare lo schermo per dirti dove sta un pulsante o per leggerti quello che c'è")
     parts.append("Non so telefonare, mandare messaggi, comprare o controllare la casa")
     return ". ".join(p[:1].upper() + p[1:] if i else p for i, p in enumerate(parts)) + ". Se vuoi sapere come si fa una cosa, chiedimelo."
@@ -567,3 +570,21 @@ def _fold_keep(s: str) -> str:
 
 def translation_ok_lang(lang: str) -> bool:
     return lang in _LANGS or lang in ("francese",)
+
+
+# ---- l'inglese: le stesse funzioni, con le regole di everyday_en.py (la lingua si sceglie nelle Impostazioni, vedi i18n.py)
+def _dispatch(name: str):
+    it = globals()[name]
+
+    def f(*a, **k):
+        if i18n.is_en():
+            from . import everyday_en
+            return getattr(everyday_en, name)(*a, **k)
+        return it(*a, **k)
+    f.__name__, f.__doc__ = name, it.__doc__
+    return f
+
+
+for _n in ("decimals_to_words", "num", "fmt", "symbols_to_words", "conversion_kind", "convert", "date_kind", "date_answer", "chance_kind", "chance_answer", "help_kind", "help_text",
+           "when_phrase", "forecast_when", "translation_request", "translation_ok_lang"):
+    globals()[_n] = _dispatch(_n)

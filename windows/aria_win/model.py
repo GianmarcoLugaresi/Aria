@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import voices
+from .l10n import tr
 
 # colori dell'icona nei vari stati (come sul Mac): ascolta, pensa, parla, errore
 STATE_COLORS = {"listening": (26, 178, 235), "thinking": (158, 92, 242), "speaking": (242, 87, 158), "error": (255, 102, 77)}
@@ -19,7 +20,8 @@ class AppModel:
     voice: str = ""
     wake_phrase: str = "Hey Aria"
     problem: str | None = None
-    hotkey: str = "Ctrl+Alt+Spazio"
+    hotkey: str = "Ctrl+Alt+Space"                    # come si scrive nella configurazione; in italiano nel menu «Space» diventa «Spazio»
+    language_choice: str = "auto"                     # quello scelto nel menu Lingua: «auto», «it» o «en»
     autostart: bool = False
     changes: list = field(default_factory=list)
 
@@ -53,14 +55,20 @@ class AppModel:
         if self.problem:
             return "⚠ " + self.problem
         if not self.connected:
-            return "Stato: in avvio…"
+            return tr("Stato: in avvio…", "Status: starting…")
         if not self.ready:
-            return "Stato: sto caricando i modelli…"
+            return tr("Stato: sto caricando i modelli…", "Status: loading the models…")
         if self.muted:
-            return "Stato: microfono silenziato"
+            return tr("Stato: microfono silenziato", "Status: microphone muted")
         if self.paused and self.state == "idle":
-            return "Stato: in pausa (a batteria)"
-        return {"listening": "Stato: ti ascolta", "thinking": "Stato: ci pensa", "speaking": "Stato: sta parlando"}.get(self.state, f"Stato: pronta, di' «{self.wake_phrase}»")
+            return tr("Stato: in pausa (a batteria)", "Status: paused (on battery)")
+        if self.state == "listening":
+            return tr("Stato: ti ascolta", "Status: listening")
+        if self.state == "thinking":
+            return tr("Stato: ci pensa", "Status: thinking")
+        if self.state == "speaking":
+            return tr("Stato: sta parlando", "Status: speaking")
+        return tr(f"Stato: pronta, di' «{self.wake_phrase}»", f"Status: ready, say “{self.wake_phrase}”")
 
     def icon_color(self) -> tuple[int, int, int] | None:
         """Il colore con cui tingere l'icona (None = icona normale, bianca o nera secondo il tema di Windows)."""
@@ -71,7 +79,27 @@ class AppModel:
         return STATE_COLORS.get(self.state)
 
     def wake_label(self) -> str:
-        return "Ferma Aria" if self.state != "idle" else "Parla con Aria"
+        return tr("Ferma Aria", "Stop Aria") if self.state != "idle" else tr("Parla con Aria", "Talk to Aria")
+
+    def hotkey_text(self) -> str:
+        """La scorciatoia come la si legge nel menu: «Ctrl+Alt+Spazio» in italiano, «Ctrl+Alt+Space» in inglese."""
+        return self.hotkey.replace("Spazio", "Space").replace("Space", tr("Spazio", "Space"))
 
     def voice_groups(self) -> list[tuple[str, list[str]]]:
-        return voices.GROUPS
+        return voices.groups()
+
+    def labels(self) -> dict[str, str]:
+        """Le scritte del menu nella lingua in uso (le stesse del menu dell'app per Mac, dove c'e' l'equivalente)."""
+        return {
+            "voice": tr("Voce", "Voice"),
+            "mute": tr(f"Silenzia il microfono (niente «{self.wake_phrase}»)", f"Mute the microphone (no “{self.wake_phrase}”)"),
+            "autostart": tr("Avvia con Windows", "Start with Windows"),
+            "language": tr("Lingua", "Language"),
+            "lang_auto": tr("Automatica (come Windows)", "Automatic (like Windows)"),
+            "folder": tr("Cartella di Aria…", "Aria's folder…"),
+            "config": tr("Apri la configurazione", "Open the configuration"),
+            "persona": tr("Apri il carattere (persona.md)", "Open the personality (persona.en.md)"),
+            "logs": tr("Mostra i log", "Show logs"),
+            "quit": tr("Esci da Aria", "Quit Aria"),
+        }
+

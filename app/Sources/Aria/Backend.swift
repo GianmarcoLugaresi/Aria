@@ -26,11 +26,12 @@ final class BackendManager {
         Paths.bootstrap()
         let py = Paths.python
         guard FileManager.default.isExecutableFile(atPath: py) else {
-            report(Paths.isBundled ? "L'app è danneggiata (manca Python): scaricala di nuovo." : "Python non trovato (\(py)). Esegui l'installer.")
+            report(Paths.isBundled ? tr("L'app è danneggiata (manca Python): scaricala di nuovo.", "The app is damaged (Python is missing): download it again.")
+                                   : tr("Python non trovato (\(py)). Esegui l'installer.", "Python not found (\(py)). Run the installer."))
             return
         }
         guard FileManager.default.fileExists(atPath: Paths.configFile) else {
-            report("Configurazione mancante: \(Paths.configFile)")
+            report(tr("Configurazione mancante: \(Paths.configFile)", "Configuration missing: \(Paths.configFile)"))
             return
         }
         try? FileManager.default.createDirectory(at: Paths.logs, withIntermediateDirectories: true)
@@ -47,7 +48,7 @@ final class BackendManager {
     /// Primo avvio dell'app scaricata: scarica i modelli (Whisper, chatbot, voce: circa 3,5 GB) con `aria.main --prefetch`, poi parte il cervello.
     private func downloadModels(then done: @escaping () -> Void) {
         if prefetchProcess != nil { return }
-        report("Primo avvio: sto scaricando i modelli (circa 3,5 GB), ci vuole un po'…")
+        report(tr("Primo avvio: sto scaricando i modelli (circa 3,5 GB), ci vuole un po'…", "First launch: downloading the models (about 3.5 GB), this takes a while…"))
         let p = Process()
         p.executableURL = URL(fileURLWithPath: Paths.python)
         p.arguments = ["-m", "aria.main", "--prefetch", "--config", Paths.configFile]
@@ -71,8 +72,8 @@ final class BackendManager {
                     self.report(nil)
                     done()
                 } else {
-                    Paths.log("scaricamento modelli non riuscito (codice \(proc.terminationStatus)): riprovo tra 60 s")
-                    self.report("Non riesco a scaricare i modelli: controlla la connessione (riprovo da solo).")
+                    Paths.log(tr("scaricamento modelli non riuscito (codice \(proc.terminationStatus)): riprovo tra 60 s", "model download failed (code \(proc.terminationStatus)): retrying in 60 s"))
+                    self.report(tr("Non riesco a scaricare i modelli: controlla la connessione (riprovo da solo).", "I can't download the models: check your connection (I'll retry on my own)."))
                     DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in self?.downloadModels(then: done) }
                 }
             }
@@ -80,9 +81,9 @@ final class BackendManager {
         do {
             try p.run()
             prefetchProcess = p
-            Paths.log("scaricamento modelli avviato (pid \(p.processIdentifier))")
+            Paths.log(tr("scaricamento modelli avviato (pid \(p.processIdentifier))", "model download started (pid \(p.processIdentifier))"))
         } catch {
-            report("Impossibile avviare il download dei modelli: \(error.localizedDescription)")
+            report(tr("Impossibile avviare il download dei modelli: \(error.localizedDescription)", "Unable to start the model download: \(error.localizedDescription)"))
         }
     }
 
@@ -105,7 +106,7 @@ final class BackendManager {
             guard let self = self, !self.stopping else { return }
             self.failures += 1
             let wait = min(30.0, 3.0 * Double(self.failures))              // se continua a cadere, aspetta sempre di piu'
-            Paths.log("backend terminato (codice \(proc.terminationStatus)): riavvio tra \(Int(wait)) s")
+            Paths.log(tr("backend terminato (codice \(proc.terminationStatus)): riavvio tra \(Int(wait)) s", "backend ended (code \(proc.terminationStatus)): restarting in \(Int(wait)) s"))
             DispatchQueue.main.asyncAfter(deadline: .now() + wait) { self.start() }
         }
         do {
@@ -113,9 +114,9 @@ final class BackendManager {
             process = p
             report(nil)
             DispatchQueue.main.asyncAfter(deadline: .now() + 60) { [weak self] in if self?.process === p, p.isRunning { self?.failures = 0 } }
-            Paths.log("backend avviato (pid \(p.processIdentifier))")
+            Paths.log(tr("backend avviato (pid \(p.processIdentifier))", "backend started (pid \(p.processIdentifier))"))
         } catch {
-            report("Impossibile avviare il backend: \(error.localizedDescription)")
+            report(tr("Impossibile avviare il backend: \(error.localizedDescription)", "Unable to start the backend: \(error.localizedDescription)"))
         }
     }
 

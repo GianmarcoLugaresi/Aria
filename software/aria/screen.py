@@ -19,6 +19,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 
+from . import i18n
 from . import profiles as P
 from .textutil import normalize
 from .voicecheck import _near
@@ -40,6 +41,14 @@ NO_PERMISSION = ("Per guardare lo schermo mi serve il permesso «Registrazione s
 NO_PERMISSION_AGAIN = ("macOS mi dice ancora che non ho il permesso «Registrazione schermo». Se nell'elenco Aria risulta già attiva, quella è la voce di una versione "
                        "vecchia dell'app: dopo un aggiornamento macOS non la riconosce più, e spegnerla e riaccenderla non basta. Nelle Impostazioni selezionala, premi il meno "
                        "per toglierla, poi chiedimi di nuovo di guardare lo schermo e consenti. Se macOS te lo chiede, esci da Aria e riaprila.")
+SCREEN_OFF_EN = ("I'm not looking at the screen: I've left it switched off. You can turn it on in Aria's Settings, under \"What Aria can do on your Mac\": "
+                 "choose whether to read it with the Mac's OCR or with a model that can see.")
+NO_PERMISSION_EN = ("To look at the screen I need the \"Screen Recording\" permission. I've opened System Settings for you: switch Aria on in the list, "
+                    "or press the plus and add it, and then try again.")
+NO_PERMISSION_AGAIN_EN = ("macOS still tells me I don't have the \"Screen Recording\" permission. If Aria already shows as switched on in the list, that's the entry of an older version "
+                          "of the app: after an update macOS no longer recognises it, and switching it off and on is not enough. In Settings select it, press the minus "
+                          "to remove it, then ask me to look at the screen again and allow it. If macOS asks you to, quit Aria and open it again.")
+NO_OCR_HELPER_EN = "The program that reads the screen is missing: run Aria's installation again."
 PRIVACY_PANE = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
 NO_OCR_HELPER = "Manca il programma che legge lo schermo: rilancia l'installazione di Aria."
 
@@ -49,6 +58,17 @@ SCREEN_SYSTEM = (
     "Se ti chiede cosa dice o di riassumere: parti dal succo (cosa vuole davvero chi ha scritto, o la conclusione pratica), poi solo le cifre, le scadenze o l'unica cosa da fare, "
     "e di' cosa si puo' ignorare. Non cominciare con «questo documento parla di» ne' con «ecco». "
     "Usa SOLO quello che c'e' nel testo: se non basta per rispondere, dillo con onesta'. Ignora i testi di Aria stessa («Ti ascolto», «Ci penso»).")
+SCREEN_SYSTEM_EN = (
+    "You are Aria, a voice assistant. I give you the TEXT read with OCR from what the user has on their Mac's screen (top to bottom; it may have errors and include menus and bars). "
+    "Answer out loud, in English, in at most four short sentences, with no lists, no markdown and no symbols. "
+    "If they ask what it says or for a summary: start with the gist (what the writer really wants, or the practical conclusion), then only the figures, deadlines or the one thing to do, "
+    "and say what can be ignored. Don't start with \"this document is about\" or with \"here is\". "
+    "Use ONLY what is in the text: if it isn't enough to answer, say so honestly. Ignore Aria's own texts (\"I'm listening\", \"Thinking\").")
+VISION_PROMPT_EN = (
+    "You are Aria, a voice assistant. This is a screenshot of the user's Mac (at the bottom centre there may be Aria's little window, that is you: ignore it). "
+    "Answer out loud, in English, in at most four short sentences, with no lists, no markdown and no symbols. Describe only what you really see: "
+    "if you are not sure of something, say so. If they ask where something is, give only the position (top right, under the bar…) and how to recognise it (colour, shape, label), with no preamble. "
+    "If they ask for a summary, start with the gist and then give the important figures or deadlines. The user's request: ")
 VISION_PROMPT = (
     "Sei Aria, un'assistente vocale. Questa e' una schermata del Mac dell'utente (in basso al centro potrebbe esserci la finestrella di Aria, cioe' tu: ignorala). "
     "Rispondi a voce, in italiano, con al massimo quattro frasi brevi, senza elenchi, senza markdown e senza simboli. Descrivi solo quello che vedi davvero: "
@@ -56,9 +76,11 @@ VISION_PROMPT = (
     "Se ti chiede di riassumere, parti dal succo e poi dai le cifre o le scadenze importanti. Richiesta dell'utente: ")
 
 # parole che nella richiesta indicano il tipo di elemento («il pulsante Esporta»), non il suo testo
+_NOISE_EN = {"the", "a", "an", "button", "key", "menu", "item", "tab", "option", "link", "icon", "called", "named", "labeled", "labelled", "with", "that", "says", "written", "on", "in", "of", "to",
+             "where", "is", "find", "click", "press", "tap", "my", "screen", "here", "please", "do", "can", "how", "which", "word", "text", "field", "box", "checkbox", "label", "setting"}
 _NOISE = {"il", "lo", "la", "l", "i", "gli", "le", "un", "una", "uno", "pulsante", "tasto", "bottone", "voce", "menu", "scheda", "opzione", "link", "collegamento", "icona", "chiamato",
           "chiamata", "con", "scritto", "scritta", "di", "del", "della", "dello", "dei", "delle", "che", "dice", "si", "trova", "dove", "e", "qui", "schermo", "sullo", "sul",
-          "per", "da", "a", "in", "su", "quello", "quella", "quel", "devo", "posso", "faccio", "fare", "clicco", "cliccare", "premere", "premo", "nella", "nel", "al", "alla", "allo", "ai", "sulla"}
+          "per", "da", "a", "in", "su", "quello", "quella", "quel", "devo", "posso", "faccio", "fare", "clicco", "cliccare", "premere", "premo", "nella", "nel", "al", "alla", "allo", "ai", "sulla"} | _NOISE_EN
 # la zona dove sta la finestrella di Aria durante la cattura (centro in basso): quello che c'e' li' sotto non si legge e non e' dell'utente
 _OVERLAY = (0.27, 0.73, 0.55)
 
@@ -77,7 +99,7 @@ _SYN_GROUPS = [
     "scarica download", "contatti contacts contatto contact", "nome name", "indirizzo address", "oggetto subject", "allegato allegati attachment attachments", "rispondi reply", "inoltra forward",
     "bozza bozze draft drafts", "posta mail inbox", "calendario calendar", "mappa mappe maps", "foto photos", "musica music", "messaggi messages", "note notes", "promemoria reminders",
     "attiva abilita enable", "disattiva disabilita disable", "tema theme", "lingua language", "password", "utente user", "rete network wifi", "suono sound audio", "schermo screen display",
-    "chiave key", "tastiera keyboard", "mouse", "stampante printer", "batteria battery", "ora time", "data date", "fine end", "inizio start", "sopra up", "sotto down", "sinistra left", "destra right",
+    "exit quit logout signout", "magnifier search find", "preferences settings", "chiave key", "tastiera keyboard", "mouse", "stampante printer", "batteria battery", "ora time", "data date", "fine end", "inizio start", "sopra up", "sotto down", "sinistra left", "destra right",
 ]
 # espressioni di piu' parole che in inglese sono un'altra espressione: «salva con nome» = «Save As»
 _PHRASES = {"salva con nome": ["save as"], "salva come": ["save as"], "schermo intero": ["full screen", "enter full screen"], "tutto schermo": ["full screen"], "nuova scheda": ["new tab"],
@@ -122,6 +144,10 @@ def where(x: float, y: float) -> str:
     """Un punto dello schermo (0-1, origine in alto a sinistra) detto a parole."""
     col = 0 if x < 0.34 else 1 if x < 0.66 else 2
     row = 0 if y < 0.34 else 1 if y < 0.66 else 2
+    if i18n.is_en():
+        return [["at the top left", "at the top, in the middle", "at the top right"],
+                ["on the left, halfway down", "in the middle of the screen", "on the right, halfway down"],
+                ["at the bottom left", "at the bottom, in the middle", "at the bottom right"]][row][col]
     return [["in alto a sinistra", "in alto, al centro", "in alto a destra"],
             ["a sinistra, a metà altezza", "al centro dello schermo", "a destra, a metà altezza"],
             ["in basso a sinistra", "in basso, al centro", "in basso a destra"]][row][col]
@@ -191,8 +217,8 @@ def _label(t: str, n: int = 40) -> str:
 def _said_label(m: Line) -> str:
     ctx = getattr(m, "context", m.t)
     if len(ctx.split()) > len(m.t.split()) + 3:                          # una parola dentro una frase: non si legge la frase intera a voce
-        return f"la parola «{_label(m.t, 30)}», in una frase"
-    return f"«{_label(m.t)}»"
+        return i18n.pick(f"la parola «{_label(m.t, 30)}», in una frase", f"the word \"{_label(m.t, 30)}\", in a sentence")
+    return i18n.pick(f"«{_label(m.t)}»", f"\"{_label(m.t)}\"")
 
 
 def describe_matches(matches: list[tuple[float, Line]], lines: list[Line], target: str) -> str:
@@ -202,13 +228,14 @@ def describe_matches(matches: list[tuple[float, Line]], lines: list[Line], targe
     best = matches[0][1]
     near = [l for l in lines if abs(l.x - best.x) < 0.12 and abs(l.y - best.y) < 0.06 and normalize(l.t) != normalize(getattr(best, "context", best.t))]
     nearby = min(near, key=lambda l: (l.x - best.x) ** 2 + (l.y - best.y) ** 2) if near else None
-    s = f"Vedo {_said_label(best)} {where(best.x, best.y)}"
+    en = i18n.is_en()
+    s = f"I see {_said_label(best)} {where(best.x, best.y)}" if en else f"Vedo {_said_label(best)} {where(best.x, best.y)}"
     if nearby is not None and len(nearby.t.split()) <= 5 and len(getattr(best, "context", best.t).split()) <= len(best.t.split()) + 3:
-        s += f", vicino a «{_label(nearby.t, 30)}»"
+        s += f", next to \"{_label(nearby.t, 30)}\"" if en else f", vicino a «{_label(nearby.t, 30)}»"
     others = [m[1] for m in matches[1:3] if m[0] >= matches[0][0] - 0.15]
     s += "."
     if others:
-        s += " C'è anche " + (" e ".join(f"{_said_label(o)} {where(o.x, o.y)}" for o in others)) + "."
+        s += (" There's also " if en else " C'è anche ") + ((" and " if en else " e ").join(f"{_said_label(o)} {where(o.x, o.y)}" for o in others)) + "."
     return s
 
 
@@ -228,7 +255,7 @@ class AppleOCR:
         if self.proc and self.proc.returncode is None:
             return
         if not self.available():
-            raise RuntimeError(NO_OCR_HELPER)
+            raise RuntimeError(i18n.pick(NO_OCR_HELPER, NO_OCR_HELPER_EN))
         self.pending = 0
         self.proc = await asyncio.create_subprocess_exec(self.helper, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, limit=STREAM_LIMIT)
         line = await asyncio.wait_for(self.proc.stdout.readline(), 30)
@@ -296,6 +323,10 @@ _ROLE_IT = {"AXButton": "il pulsante", "AXMenuButton": "il pulsante", "AXPopUpBu
             "AXRadioButton": "il pulsante", "AXTextField": "il campo", "AXTextArea": "il campo", "AXSearchField": "il campo di ricerca", "AXComboBox": "il campo", "AXLink": "il link",
             "AXTab": "la scheda", "AXTabGroup": "la scheda", "AXImage": "l'icona", "AXSlider": "il cursore", "AXDisclosureTriangle": "la freccia", "AXSegmentedControl": "il selettore",
             "AXHeading": "il titolo", "AXStaticText": "la scritta", "AXCell": "la riga", "AXRow": "la riga", "AXToolbar": "la barra degli strumenti", "AXGroup": "l'elemento"}
+_ROLE_EN = {"AXButton": "button", "AXMenuButton": "button", "AXPopUpButton": "dropdown menu", "AXMenuBarItem": "menu", "AXMenuItem": "menu item", "AXCheckBox": "checkbox",
+            "AXRadioButton": "button", "AXTextField": "field", "AXTextArea": "field", "AXSearchField": "search field", "AXComboBox": "field", "AXLink": "link",
+            "AXTab": "tab", "AXTabGroup": "tab", "AXImage": "icon", "AXSlider": "slider", "AXDisclosureTriangle": "arrow", "AXSegmentedControl": "selector",
+            "AXHeading": "heading", "AXStaticText": "label", "AXCell": "row", "AXRow": "row", "AXToolbar": "toolbar", "AXGroup": "element"}
 _INTERACTIVE = {"AXButton", "AXMenuButton", "AXPopUpButton", "AXMenuBarItem", "AXMenuItem", "AXCheckBox", "AXRadioButton", "AXTextField", "AXTextArea", "AXSearchField", "AXComboBox", "AXLink",
                 "AXTab", "AXSlider", "AXDisclosureTriangle", "AXSegmentedControl"}
 
@@ -390,9 +421,15 @@ def locate_ax(elements: list[dict], target: str) -> list[tuple[float, Line]]:
 def describe_ax(matches: list[tuple[float, Line]]) -> str:
     """«Vedo il pulsante «Condividi» in alto a destra.»"""
     best = matches[0][1]
+    others = [m[1] for m in matches[1:3] if m[0] >= matches[0][0] - 0.1]
+    if i18n.is_en():
+        kind = _ROLE_EN.get(getattr(best, "role", ""), "")
+        s = f"I see the {kind + ' ' if kind else ''}\"{_label(best.t)}\" {where(best.x, best.y)}."
+        if others:
+            s += " There's also " + " and ".join(f"the {_ROLE_EN.get(getattr(o, 'role', ''), 'element')} \"{_label(o.t, 30)}\" {where(o.x, o.y)}" for o in others) + "."
+        return s
     kind = _ROLE_IT.get(getattr(best, "role", ""), "")
     s = f"Vedo {kind + ' ' if kind else ''}«{_label(best.t)}» {where(best.x, best.y)}."
-    others = [m[1] for m in matches[1:3] if m[0] >= matches[0][0] - 0.1]
     if others:
         s += " C'è anche " + " e ".join(f"{_ROLE_IT.get(getattr(o, 'role', ''), 'un elemento')} «{_label(o.t, 30)}» {where(o.x, o.y)}" for o in others) + "."
     return s
@@ -487,6 +524,10 @@ def parse_box(text: str) -> Line | None:
     return Line("", (x0 + x1) / 2, (y0 + y1) / 2, x1 - x0, y1 - y0)
 
 
+SCREEN_READ_SYSTEM_EN = (
+    "You are Aria, a voice assistant. I give you the TEXT read with OCR from the Mac's screen (top to bottom; it has errors and includes menus and bars). The user wants you to READ ALOUD the main content. "
+    "Read the main text in the right order, fixing the obvious OCR mistakes, skipping menus, bars and buttons. At most 800 characters: if it is longer, read the beginning and say that it continues. "
+    "Spoken English only, no lists, no markdown and no symbols. If there is no text to read, say so.")
 SCREEN_READ_SYSTEM = (
     "Sei Aria, un'assistente vocale. Ti do il TESTO letto con l'OCR dallo schermo del Mac (dall'alto in basso; ha errori e contiene menu e barre). L'utente vuole che tu LEGGA AD ALTA VOCE il contenuto principale. "
     "Leggi il testo principale nell'ordine giusto, correggendo gli errori ovvi dell'OCR, saltando menu, barre e pulsanti. Al massimo 800 caratteri: se e' piu' lungo leggi l'inizio e di' che continua. "
@@ -541,9 +582,9 @@ class ScreenTools:
         self._last_found_at = time.monotonic()
         menu = getattr(found[0][1], "menu", "")
         if menu and getattr(found[0][1], "role", "") == "AXMenuItem":
-            said = f"È la voce «{_label(found[0][1].t)}» del menu {menu}, in alto."
+            said = i18n.pick(f"È la voce «{_label(found[0][1].t)}» del menu {menu}, in alto.", f"It's the \"{_label(found[0][1].t)}\" item in the {menu} menu, at the top.")
         if await self._point(self._last_found):
-            said += " Te lo segno sullo schermo."
+            said += i18n.pick(" Te lo segno sullo schermo.", " I'm marking it on the screen for you.")
         return said
 
     _last_found: list | None = None                                        # le righe che ha appena indicato (per «indicamelo» / «fammelo vedere»)
@@ -562,22 +603,25 @@ class ScreenTools:
     async def _schermo(self, arg: str) -> str:
         mode, _, text = arg.partition("|")
         mode, text = (mode.strip() or "leggi"), text.strip()
+        if sys.platform == "win32":                                           # leggere lo schermo usa OCR, Accessibilita' e Registrazione schermo di macOS: su Windows non c'e'
+            from .winos import _not_on_windows
+            return _not_on_windows()
         if mode == "indica":                                              # «indicamelo»: di nuovo il riquadro su quello che ha appena trovato (la posizione e' quella di prima: se hai spostato la finestra, rifai la domanda)
             if not self._last_found:
-                return "Non so cosa indicarti: dimmi cosa cerchi, ad esempio «non trovo il pulsante Esporta»."
-            return "Eccolo." if await self._point(self._last_found) else "Non riesco a indicarlo sullo schermo, ma ti ho detto dove si trova."
+                return i18n.pick("Non so cosa indicarti: dimmi cosa cerchi, ad esempio «non trovo il pulsante Esporta».", "I don't know what to point out: tell me what you're looking for, for example \"I can't find the Export button\".")
+            return i18n.pick("Eccolo.", "There it is.") if await self._point(self._last_found) else i18n.pick("Non riesco a indicarlo sullo schermo, ma ti ho detto dove si trova.", "I can't point it out on the screen, but I've told you where it is.")
         engine = self._screen_engine()
         if engine is None:
-            return SCREEN_OFF
+            return i18n.pick(SCREEN_OFF, SCREEN_OFF_EN)
         if mode == "dove":
-            self._prog("Guardo i pulsanti", 0.05, 0.3, 2)
+            self._prog(i18n.pick("Guardo i pulsanti", "Looking at the buttons"), 0.05, 0.3, 2)
             via_ax = await self._find_with_ax(text)                          # la via migliore: posizione esatta, senza nemmeno catturare lo schermo
             if via_ax:
                 return via_ax
         helper = self._ocr_helper()
         if engine == "mac" and not helper.available():
-            return NO_OCR_HELPER
-        self._prog("Guardo lo schermo", 0.05, 0.2, 3)
+            return i18n.pick(NO_OCR_HELPER, NO_OCR_HELPER_EN)
+        self._prog(i18n.pick("Guardo lo schermo", "Looking at the screen"), 0.05, 0.2, 3)
         ok = await helper.permission() if helper.available() else True
         log.info("schermo: modo=%s motore=%s permesso=%s", mode, engine, ok)
         if not ok:
@@ -590,7 +634,7 @@ class ScreenTools:
             getattr(helper, "close", lambda: None)()                      # il prossimo controllo lo fa un processo nuovo: il permesso dato nel frattempo si vede subito
             self._perm_asked_at = _time.monotonic()
             await _open_privacy_pane()
-            return NO_PERMISSION_AGAIN if again else NO_PERMISSION
+            return i18n.pick(NO_PERMISSION_AGAIN, NO_PERMISSION_AGAIN_EN) if again else i18n.pick(NO_PERMISSION, NO_PERMISSION_EN)
         path = await capture()
         try:
             return await (self._schermo_mac if engine == "mac" else self._schermo_model)(mode, text, path)
@@ -610,17 +654,19 @@ class ScreenTools:
                 return ""
             self._ax_hint_given = True
             await probe.permission(ask=True)
-            return "Per trovare anche le icone senza scritta mi serve il permesso «Accessibilità»: ti ho aperto le Impostazioni, attiva Aria e riprova."
+            return i18n.pick("Per trovare anche le icone senza scritta mi serve il permesso «Accessibilità»: ti ho aperto le Impostazioni, attiva Aria e riprova.",
+                             "To find icons without a label too I need the \"Accessibility\" permission: I've opened Settings, switch Aria on and try again.")
         except Exception:                                                     # noqa: BLE001
             return ""
 
     async def _schermo_mac(self, mode: str, text: str, path: str) -> str:
-        self._prog("Leggo il testo", 0.2, 0.6, 4)
+        self._prog(i18n.pick("Leggo il testo", "Reading the text"), 0.2, 0.6, 4)
         lines = [l for l in await self._ocr_helper().read(path) if l.t.strip() and not _in_overlay(l)]
         log.info("schermo: letto %d righe di testo", len(lines))
         if not lines:
-            return ("Non vedo nessun testo sullo schermo. Se dovrei vederne, controlla che Aria abbia il permesso «Registrazione schermo» "
-                    "in Impostazioni di Sistema, sotto Privacy e sicurezza.")
+            return i18n.pick("Non vedo nessun testo sullo schermo. Se dovrei vederne, controlla che Aria abbia il permesso «Registrazione schermo» "
+                             "in Impostazioni di Sistema, sotto Privacy e sicurezza.",
+                             "I don't see any text on the screen. If I should, check that Aria has the \"Screen Recording\" permission in System Settings, under Privacy & Security.")
         if mode == "dove":
             found = locate(lines, text)
             if found:
@@ -629,16 +675,26 @@ class ScreenTools:
                 self._last_found = [found[0][1]] + [m[1] for m in found[1:3] if m[0] >= found[0][0] - 0.15]
                 self._last_found_at = time.monotonic()
                 if await self._point(self._last_found):
-                    said += " Te lo segno sullo schermo."
+                    said += i18n.pick(" Te lo segno sullo schermo.", " I'm marking it on the screen for you.")
                 return said
             hint = await self._ax_permission_hint()
+            if i18n.is_en():
+                return (f"I don't see any text \"{_label(text)}\" on the screen. " + (hint or "If it's an icon with no text, I can't find it with the Mac's OCR: "
+                        "with \"a model that can see\", in Settings, I can, but only roughly."))
             return (f"Non vedo nessuna scritta «{_label(text)}» sullo schermo. " + (hint or "Se è un'icona senza testo, con l'OCR del Mac non posso trovarla: "
                     "con «un modello che vede», nelle Impostazioni, ci riesco ma solo a grandi linee."))
-        question = text or "Riassumi cosa c'è sullo schermo e di cosa parla."
+        en = i18n.is_en()
+        question = text or ("Summarise what is on the screen and what it is about." if en else "Riassumi cosa c'è sullo schermo e di cosa parla.")
         if self.generate is None:
-            return "Leggo: " + " ".join(l.t for l in lines[:12])[:500]
-        self._prog("Ci penso", 0.6, 0.95, 8)
-        aloud = bool(re.search(r"\b(?:legg\w+|leggere|ad alta voce)\b", normalize(question))) and not re.search(r"\b(?:riassum\w+|sintetizz\w+|spieg\w+|traduc\w+)\b", normalize(question))
+            return i18n.pick("Leggo: ", "Reading: ") + " ".join(l.t for l in lines[:12])[:500]
+        self._prog(i18n.pick("Ci penso", "Thinking"), 0.6, 0.95, 8)
+        nq = normalize(question)
+        if en:
+            aloud = bool(re.search(r"\b(?:read|reads|reading|aloud|out loud)\b", nq)) and not re.search(r"\b(?:summari[sz]e|summary|explain|translate|sum up)\b", nq)
+            out = await self.generate(SCREEN_READ_SYSTEM_EN if aloud else SCREEN_SYSTEM_EN,
+                                      f"User request: {question}\n\nText read from the screen (top to bottom):\n{reading_order(lines)}", 520 if aloud else 320)
+            return (out or "").strip() or "I couldn't work out what is on the screen."
+        aloud = bool(re.search(r"\b(?:legg\w+|leggere|ad alta voce)\b", nq)) and not re.search(r"\b(?:riassum\w+|sintetizz\w+|spieg\w+|traduc\w+)\b", nq)
         out = await self.generate(SCREEN_READ_SYSTEM if aloud else SCREEN_SYSTEM,
                                   f"Richiesta dell'utente: {question}\n\nTesto letto dallo schermo (dall'alto in basso):\n{reading_order(lines)}", 520 if aloud else 320)
         return (out or "").strip() or "Non sono riuscita a capire cosa c'è sullo schermo."
@@ -646,27 +702,31 @@ class ScreenTools:
     async def _schermo_model(self, mode: str, text: str, path: str) -> str:
         model = vision_model(self.cfg)
         if not _vision_ready(model):
-            return f"Il modello che vede ({P.llm_label('mlx:' + model)}) non è ancora sul Mac: scegli Gemma 4 E4B tra i chatbot nelle Impostazioni e premi «Scarica»."
+            return i18n.pick(f"Il modello che vede ({P.llm_label('mlx:' + model)}) non è ancora sul Mac: scegli Gemma 4 E4B tra i chatbot nelle Impostazioni e premi «Scarica».",
+                             f"The model that can see ({P.llm_label('mlx:' + model)}) isn't on this Mac yet: pick Gemma 4 E4B among the chatbots in Settings and press \"Download\".")
         if mode == "dove":                                                    # il modello da' un riquadro (approssimato): si indica con prudenza
-            self._prog("Cerco con il modello", 0.2, 0.9, 12)
+            self._prog(i18n.pick("Cerco con il modello", "Searching with the model"), 0.2, 0.9, 12)
             raw = await run_vision(path, f"Find \"{text}\" in this screenshot (a button, icon, menu or text). Answer ONLY with JSON: {{\"box_2d\": [y_min, x_min, y_max, x_max]}} with coordinates "
                                           f"normalized to 0-1000, or {{\"box_2d\": null}} if it is not visible.", model, self.cfg, max_tokens=70)
             box = parse_box(raw)
             if box is None:
-                return f"Non vedo «{_label(text)}» sullo schermo."
+                return i18n.pick(f"Non vedo «{_label(text)}» sullo schermo.", f"I don't see \"{_label(text)}\" on the screen.")
             import time
             box.w, box.h = max(box.w * 1.6, 0.06), max(box.h * 1.6, 0.05)               # il riquadro del modello e' approssimato: lo si allarga
             box.t = text
             self._last_found, self._last_found_at = [box], time.monotonic()
-            said = f"Credo sia {where(box.x, box.y)}, ma non sono sicura della posizione esatta."
+            said = i18n.pick(f"Credo sia {where(box.x, box.y)}, ma non sono sicura della posizione esatta.", f"I think it's {where(box.x, box.y)}, but I'm not sure of the exact position.")
             if await self._point(self._last_found):
-                said += " Te lo segno sullo schermo."
+                said += i18n.pick(" Te lo segno sullo schermo.", " I'm marking it on the screen for you.")
             return said
-        ask = {"leggi": text or "Riassumi cosa c'è sullo schermo e leggi i testi principali."}.get(mode) or text or "Descrivi cosa c'è sullo schermo."
-        self._prog("Guardo con il modello", 0.2, 0.95, 12)
-        out = await run_vision(path, VISION_PROMPT + ask, model, self.cfg)
+        if i18n.is_en():
+            ask = {"leggi": text or "Summarise what is on the screen and read out the main texts."}.get(mode) or text or "Describe what is on the screen."
+        else:
+            ask = {"leggi": text or "Riassumi cosa c'è sullo schermo e leggi i testi principali."}.get(mode) or text or "Descrivi cosa c'è sullo schermo."
+        self._prog(i18n.pick("Guardo con il modello", "Looking with the model"), 0.2, 0.95, 12)
+        out = await run_vision(path, i18n.pick(VISION_PROMPT, VISION_PROMPT_EN) + ask, model, self.cfg)
         from .style import strip_markdown
-        return strip_markdown(out).strip() or "Non sono riuscita a capire cosa c'è sullo schermo."
+        return strip_markdown(out).strip() or i18n.pick("Non sono riuscita a capire cosa c'è sullo schermo.", "I couldn't work out what is on the screen.")
 
 
 def _vision_ready(model: str) -> bool:

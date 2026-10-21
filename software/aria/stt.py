@@ -1,4 +1,4 @@
-"""Riconoscimento vocale (italiano). Due modi: server compatibile OpenAI sul tuo Mac/mini PC, oppure Whisper nel processo."""
+"""Riconoscimento vocale (italiano o inglese, vedi i18n.py). Due modi: server compatibile OpenAI sul tuo Mac/mini PC, oppure Whisper nel processo."""
 from __future__ import annotations
 
 import asyncio
@@ -11,8 +11,16 @@ import wave
 import httpx
 import numpy as np
 
+from . import i18n
+
 log = logging.getLogger("aria.stt")
 PROMPT = "Conversazione in italiano tra una persona e Aria, un'assistente da scrivania."
+PROMPT_EN = "A conversation in English between a person and Aria, a desk assistant."
+
+
+def prompt() -> str:
+    """Il suggerimento che si da' a Whisper: nella lingua in uso (cosi' ascolta in quella lingua e non indovina)."""
+    return i18n.pick(PROMPT, PROMPT_EN)
 
 
 def prepare_audio(pcm: np.ndarray, target_db: float = -20.0, max_gain_db: float = 24.0) -> np.ndarray:
@@ -40,11 +48,14 @@ def audio_stats(pcm: np.ndarray) -> tuple[float, float]:
 # frasi che Whisper "inventa" sul silenzio o sul rumore (sottotitoli dei video su cui e' stato addestrato)
 _HALLUCINATIONS = ("sottotitoli", "amara org", "sottotitoli creati", "iscriviti al canale", "grazie a tutti per la visione",
                    "alla prossima", "grazie per la visione", "ci vediamo al prossimo video", "subtitles by", "www ")
+_HALLUCINATIONS_EN = ("thanks for watching", "thank you for watching", "please subscribe", "like and subscribe", "subtitles by", "amara org", "see you in the next video",
+                      "see you next time", "transcribed by", "captions by", "www ", "subscribe to")
 
 
 _FUNC = {"il", "lo", "la", "le", "i", "gli", "l", "un", "una", "uno", "del", "dello", "della", "dei", "degli", "delle", "dell", "di", "da", "in", "con", "su", "per", "tra", "fra", "a", "al", "allo", "alla", "ai",
          "agli", "alle", "all", "e", "o", "ma", "se", "che", "non", "mi", "ti", "ci", "si", "vi", "li", "ne", "poi", "come", "cosa", "quando", "dove", "perche", "perché", "gia", "già", "anche", "sul", "sulla",
          "nel", "nella", "nello", "dal", "dalla", "ho", "ha", "hai", "sono", "è", "e'", "ora", "allora", "quindi", "cioe", "cioè", "ecco", "tipo"}
+_FUNC_EN = {"the", "a", "an", "of", "to", "in", "on", "at", "and", "or", "but", "if", "that", "it", "is", "i", "you", "we", "my", "your", "for", "with", "um", "uh", "like", "then", "just"}
 _PREP_PAIR = {"di": {"del", "dello", "della", "dei", "degli", "delle", "dell"}, "a": {"al", "allo", "alla", "ai", "agli", "alle", "all"}, "in": {"nel", "nello", "nella", "nei", "negli", "nelle", "nell"},
               "da": {"dal", "dallo", "dalla", "dai", "dagli", "dalle", "dall"}, "su": {"sul", "sullo", "sulla", "sui", "sugli", "sulle", "sull"}}
 
@@ -56,6 +67,7 @@ def dedupe_repeats(text: str) -> str:
     if len(toks) < 2:
         return text
     bare = lambda w: re.sub(r"[^\wàèéìòù']", "", w.lower())
+    func = _FUNC_EN if i18n.is_en() else _FUNC
     out: list[str] = []
     i = 0
     cap = lambda w, was_cap: (w[:1].upper() + w[1:]) if was_cap and w[:1].islower() else w
@@ -74,11 +86,11 @@ def dedupe_repeats(text: str) -> str:
             continue
         w = toks[i]
         nxt = toks[i + 1] if i + 1 < len(toks) else ""
-        if nxt and bare(w) == bare(nxt) and bare(w) in _FUNC:                  # «del del» -> «del» (con la maiuscola e la punteggiatura giuste)
+        if nxt and bare(w) == bare(nxt) and bare(w) in func:                  # «del del» -> «del» (con la maiuscola e la punteggiatura giuste)
             toks[i + 1] = cap(nxt, w[:1].isupper())
             i += 1
             continue
-        if nxt and bare(w) in _PREP_PAIR and bare(nxt) in _PREP_PAIR[bare(w)]:  # «di degli» -> «degli»
+        if not i18n.is_en() and nxt and bare(w) in _PREP_PAIR and bare(nxt) in _PREP_PAIR[bare(w)]:  # «di degli» -> «degli»
             toks[i + 1] = cap(nxt, w[:1].isupper())
             i += 1
             continue
@@ -92,10 +104,10 @@ def clean_transcript(text: str) -> str:
     t = normalize(text)
     if not t:
         return ""
-    if any(h in t for h in _HALLUCINATIONS) and len(t.split()) <= 8:
+    if any(h in t for h in (_HALLUCINATIONS_EN if i18n.is_en() else _HALLUCINATIONS)) and len(t.split()) <= 8:
         return ""
     words = t.split()
-    if len(words) >= 6 and len(set(words)) <= 2:                  # "sì sì sì sì sì sì": ripetizione da allucinazione
+    if len(words) >= 6 and len(set(words)) <= 2:                  # "sì sì sì sì sì sì" / "yes yes yes yes yes yes": ripetizione da allucinazione
         return ""
     return dedupe_repeats(text.strip())
 
@@ -133,7 +145,7 @@ class OpenAISTT:
         r = await self.http.post(self.base + "/audio/transcriptions",
                                  files={"file": ("audio.wav", pcm_to_wav(pcm, sr), "audio/wav")},
                                  data={"model": self.model, "language": self.lang, "temperature": "0",
-                                       "response_format": "json", "prompt": PROMPT})
+                                       "response_format": "json", "prompt": prompt()})
         r.raise_for_status()
         return r.json().get("text", "").strip()
 
@@ -159,7 +171,7 @@ class FasterWhisperSTT:
         m = self._load()
         audio = prepare_audio(pcm)
         segs, _ = m.transcribe(audio, language=self.cfg.get("language", "it"), beam_size=int(self.cfg.get("beam_size", 5)), vad_filter=False,
-                               condition_on_previous_text=False, initial_prompt=PROMPT, temperature=[0.0, 0.2, 0.4])
+                               condition_on_previous_text=False, initial_prompt=prompt(), temperature=[0.0, 0.2, 0.4])
         return clean_transcript(" ".join(s.text.strip() for s in segs))
 
     async def warmup(self) -> None:
@@ -167,7 +179,7 @@ class FasterWhisperSTT:
 
     async def transcribe(self, pcm: np.ndarray, sr: int = 16000) -> str:
         if sr != 16000:
-            raise ValueError("faster-whisper vuole audio a 16 kHz")
+            raise ValueError("faster-whisper needs 16 kHz audio")
         return await asyncio.get_running_loop().run_in_executor(None, self._run, pcm)
 
 
@@ -195,7 +207,7 @@ class MLXWhisperSTT:
         import mlx_whisper                                       # type: ignore
         audio = prepare_audio(pcm)
         r = mlx_whisper.transcribe(audio, path_or_hf_repo=self.repo, language=self.cfg.get("language", "it"),
-                                   condition_on_previous_text=False, initial_prompt=PROMPT if self.cfg.get("prompt", True) else None,
+                                   condition_on_previous_text=False, initial_prompt=prompt() if self.cfg.get("prompt", True) else None,
                                    verbose=None, fp16=True, no_speech_threshold=0.6)
         self.last_conf = segment_confidence(r.get("segments") or [])
         return clean_transcript(r.get("text", ""))
@@ -224,6 +236,7 @@ class AppleSTT:
     def __init__(self, cfg: dict):
         self.cfg = cfg
         self.helper = apple_helper_path(cfg)
+        self.locale = cfg.get("locale") or i18n.APPLE_LOCALE[i18n.language()]
         self.proc: asyncio.subprocess.Process | None = None
         self.lock = asyncio.Lock()
         self.last_conf: dict | None = None                      # Apple non da' una misura di sicurezza come Whisper
@@ -233,15 +246,16 @@ class AppleSTT:
         if self.proc and self.proc.returncode is None:
             return
         if not os.path.exists(self.helper):
-            raise RuntimeError(f"manca il programma di supporto per il riconoscimento di Apple ({self.helper}): rilancia app/install.sh")
+            raise RuntimeError(i18n.pick(f"manca il programma di supporto per il riconoscimento di Apple ({self.helper}): rilancia app/install.sh",
+                                         f"the helper program for Apple speech recognition is missing ({self.helper}): run app/install.sh again"))
         self.pending = 0
-        self.proc = await asyncio.create_subprocess_exec(self.helper, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-        line = await asyncio.wait_for(self.proc.stdout.readline(), 600)         # la prima volta puo' scaricare la lingua italiana (dati di Apple)
+        self.proc = await asyncio.create_subprocess_exec(self.helper, "--locale", self.locale, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        line = await asyncio.wait_for(self.proc.stdout.readline(), 600)         # la prima volta puo' scaricare la lingua (dati di Apple)
         if line.decode("utf-8", "ignore").strip() != "READY":
             err = line.decode("utf-8", "ignore").strip()
             self.proc.kill()
             self.proc = None
-            raise RuntimeError(f"riconoscimento di Apple non pronto: {err or 'nessuna risposta'}")
+            raise RuntimeError(i18n.pick(f"riconoscimento di Apple non pronto: {err or 'nessuna risposta'}", f"Apple speech recognition is not ready: {err or 'no answer'}"))
         log.info("Riconoscimento vocale di Apple pronto")
 
     async def warmup(self) -> None:
@@ -282,7 +296,7 @@ class AppleSTT:
             except OSError:
                 pass
         if not line.startswith("R\t"):
-            raise RuntimeError(f"riconoscimento di Apple: {line[:120] or 'nessuna risposta'}")
+            raise RuntimeError(i18n.pick(f"riconoscimento di Apple: {line[:120] or 'nessuna risposta'}", f"Apple speech recognition: {line[:120] or 'no answer'}"))
         self.last_conf = None
         return clean_transcript(line[2:])
 

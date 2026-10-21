@@ -8,7 +8,8 @@ def main() -> int:
     root = tk.Tk()
     root.withdraw()
     root.attributes("-topmost", True)
-    folder = filedialog.askdirectory(title="Scegli la cartella dove Aria legge e scrive i file", mustexist=True)
+    from .l10n import tr
+    folder = filedialog.askdirectory(title=tr("Scegli la cartella dove Aria legge e scrive i file", "Choose the folder where Aria reads and writes files"), mustexist=True)
     root.destroy()
     if folder:
         print(folder)

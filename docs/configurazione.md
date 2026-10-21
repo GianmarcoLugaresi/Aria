@@ -3,13 +3,15 @@
 Ci sono tre livelli, dal più «fisso» al più «vivo»:
 
 1. **`config.yaml`** (`~/Library/Application Support/Aria/config.yaml`): la configurazione di base, modificabile a mano. Dopo averla cambiata, esci da Aria dal menu e riaprila. Il modello è `app/config.app.yaml`, che ha un commento per ogni voce.
-2. **`settings.json`** (stessa cartella): le scelte fatte dalla finestra Impostazioni (versione, modelli, poteri, cartella, frase di attivazione). Si *sovrappone* a `config.yaml` senza riscriverlo: per tornare indietro basta scegliere «Media» o cancellare il file.
-3. **`persona.md`** (stessa cartella): il carattere di Aria, il prompt che le dice come parlare. Puoi cambiarlo a piacere; il modello per i modelli piccoli è `anima/persona_compatta.md`, quello esteso `anima/persona.md`.
+2. **`settings.json`** (stessa cartella): le scelte fatte dalla finestra Impostazioni (lingua, versione, modelli, poteri, cartella, frase di attivazione). Si *sovrappone* a `config.yaml` senza riscriverlo: per tornare indietro basta scegliere «Media» o cancellare il file.
+3. **`persona.md`** (stessa cartella): il carattere di Aria, il prompt che le dice come parlare. Puoi cambiarlo a piacere; il modello per i modelli piccoli è `anima/persona_compatta.md`, quello esteso `anima/persona.md`. In inglese Aria usa `persona.en.md` (stessa cartella; se manca, quello che c'è dentro l'app): cambiare lingua non riscrive mai i tuoi file.
 
 ## Le voci principali di `config.yaml`
 
 | Voce | Cosa fa |
 |---|---|
+| `language` | `it` o `en`: la lingua di Aria. Senza questa voce vale la lingua del Mac (italiano solo se il Mac è in italiano); la scelta fatta nelle Impostazioni vale più di questa |
+| `units` | `auto`, `metric` o `imperial`: gradi e distanze in inglese (di fabbrica `auto`: come il Mac; in italiano è sempre metrico) |
 | `wake.phrase` | la frase di attivazione (di fabbrica «hey aria»; si cambia anche dalle Impostazioni) |
 | `audio.input_device` / `output_device` | microfono e altoparlante (`null` = quelli predefiniti; un numero o parte del nome; `python -m aria.main --list-devices` li elenca) |
 | `audio.voice_processing` | il microfono passa dal filtro eco di macOS: permette di interrompere Aria a voce anche con le casse |
@@ -36,6 +38,8 @@ brains:
     stt: {kind: mlx-whisper, model: "mlx-community/whisper-large-v3-turbo-q4"}
     tts: {kind: pocket, language: italian, voice: lola}
 ```
+
+Queste sono le voci per l'italiano: quando la lingua è l'inglese Aria le adatta da sola in memoria (`stt.language: en`, `tts.language: english`, voce `alba` se non ne hai scelta un'altra) senza toccare il file.
 
 - **Chatbot**: `kind: mlx-lm` (MLX, dentro Aria) oppure un server compatibile OpenAI (`base_url`, `model`): Ollama, llama.cpp, LM Studio… Per i modelli che «ragionano» prima di rispondere (Qwen 3.5, Gemma 4) Aria imposta `reasoning_effort: none`, altrimenti consumano tutti i token senza rispondere.
 - **Riconoscimento**: `mlx-whisper` (Mac), `apple` (riconoscimento integrato di macOS 26, scelto dalle Impostazioni), `faster-whisper` (CPU/GPU NVIDIA, usato su Windows), o un server compatibile OpenAI.

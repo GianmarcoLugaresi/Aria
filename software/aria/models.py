@@ -6,6 +6,7 @@
     python -m aria.models remove   --config config.yaml stt|llm IDENTIFICATIVO                     -> toglie un modello dal Mac (mai quello in uso, mai l'ultimo)
     python -m aria.models workspace --config config.yaml status|set PERCORSO|clear                 -> la cartella dove Aria puo' scrivere e leggere file
     python -m aria.models power    --config config.yaml status|NOME on|off                         -> accende/spegne un potere di Aria (promemoria, musica...)
+    python -m aria.models language --config config.yaml status|set it|en|auto                      -> la lingua di Aria (scritte, voce, riconoscimento, carattere)
 
 --stt = modello di riconoscimento vocale (MLX Whisper, repo Hugging Face); --llm = chatbot: "mlx:org/nome" = dentro Aria (nessun Ollama),
 un nome senza prefisso ("gemma3:4b") = un modello di Ollama.
@@ -26,6 +27,8 @@ import time
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")        # con la rete lenta il trasferimento "xet" a volte si blocca
 
 from . import config as cfgmod                           # noqa: E402
+from . import i18n                                       # noqa: E402
+from . import ui_en                                      # noqa: E402
 from . import profiles as P                              # noqa: E402
 from . import workspace as W                             # noqa: E402
 
@@ -69,21 +72,27 @@ def _snapshot_dir(repo: str) -> str | None:
         return None
 
 
+def _problem(it: str) -> str:
+    """Il motivo per cui un modello non va, nella lingua in uso."""
+    from . import ui_en
+    return ui_en.problem(it) if i18n.is_en() else it
+
+
 def mlx_whisper_problem(repo: str) -> str | None:
     """None se il repo scaricato e' un MLX Whisper utilizzabile, altrimenti il motivo (in italiano)."""
     d = _snapshot_dir(repo)
     if not d:
-        return "non e' scaricato"
+        return _problem("non e' scaricato")
     cfg = os.path.join(d, "config.json")
     try:
         with open(cfg, "r", encoding="utf-8") as f:
             c = json.load(f)
     except (OSError, ValueError):
-        return "manca config.json: non e' un modello MLX Whisper"
+        return _problem("manca config.json: non e' un modello MLX Whisper")
     if not isinstance(c, dict) or "n_audio_state" not in c:
-        return "non e' nel formato MLX Whisper (cerca un modello 'mlx-community/whisper-…')"
+        return _problem("non e' nel formato MLX Whisper (cerca un modello 'mlx-community/whisper-…')")
     if not any(os.path.exists(os.path.join(d, w)) for w in MLX_WEIGHTS):
-        return "mancano i pesi del modello"
+        return _problem("mancano i pesi del modello")
     return None
 
 
@@ -131,23 +140,23 @@ def mlx_lm_problem(repo: str) -> str | None:
     """None se il repo scaricato e' un chatbot MLX che Aria sa usare, altrimenti il motivo (in italiano)."""
     d = _snapshot_dir(repo)
     if not d:
-        return "non e' scaricato"
+        return _problem("non e' scaricato")
     try:
         with open(os.path.join(d, "config.json"), "r", encoding="utf-8") as f:
             c = json.load(f)
     except (OSError, ValueError):
-        return "manca config.json: non e' un modello di linguaggio MLX"
+        return _problem("manca config.json: non e' un modello di linguaggio MLX")
     mt = (c.get("model_type") if isinstance(c, dict) else None) or ((c.get("text_config") or {}).get("model_type") if isinstance(c, dict) else None)
     if not mt:
-        return "non e' un modello di linguaggio MLX"
+        return _problem("non e' un modello di linguaggio MLX")
     if not mlx_lm_installed(repo):
-        return "il download e' incompleto"
+        return _problem("il download e' incompleto")
     try:
         import importlib.util
         from mlx_lm import utils as U                    # type: ignore
         mt = getattr(U, "MODEL_REMAPPING", {}).get(mt, mt)
         if importlib.util.find_spec(f"mlx_lm.models.{mt}") is None:
-            return f"il tipo di modello '{mt}' non e' supportato da Aria"
+            return _problem(f"il tipo di modello '{mt}' non e' supportato da Aria")
     except ImportError:
         pass                                             # mlx_lm non c'e': non si puo' controllare
     return None
@@ -225,8 +234,8 @@ def status(config_path: str, llms="auto", extra_stt: str | None = None, extra_ll
             l_gb = next((m["gb"] for m in (llms or []) if m["name"] == r["llm"]), prof["llm_gb"])
         need = (0 if s_inst else (s_mb or 0)) + (0 if l_inst else l_gb * 1000)
         profs.append({
-            "id": pid, "label": prof["label"], "summary": prof["summary"], "ram_gb": prof["ram_gb"], "measured": prof["measured"],
-            "stt": {"name": repo, "label": P.STT_NAMES.get(repo, repo), "mb": s_mb, "installed": s_inst},
+            "id": pid, "label": P.profile_text(pid)[0], "summary": P.profile_text(pid)[1], "ram_gb": prof["ram_gb"], "measured": prof["measured"],
+            "stt": {"name": repo, "label": P.stt_display_label(repo), "mb": s_mb, "installed": s_inst},
             "llm": {"name": r["llm"], "label": P.llm_label(r["llm"]), "mb": round(l_gb * 1000), "installed": l_inst},
             "need_mb": round(need),
         })
@@ -239,29 +248,29 @@ def status(config_path: str, llms="auto", extra_stt: str | None = None, extra_ll
     stt_models, seen = [], set()
     for c in P.STT_CATALOG:
         seen.add(c["repo"])
-        stt_models.append({**c, "installed": stt_installed(_mlx(c["repo"])), "custom": False})
+        stt_models.append({**c, "label": P.stt_display_label(c["repo"]), "note": P.stt_note(c), "installed": stt_installed(_mlx(c["repo"])), "custom": False})
     for repo in [x for x in (extra_stt, settings.get("stt_model"), active_stt) if x]:   # quelli scelti a mano e non in elenco
         if repo not in seen:
             seen.add(repo)
             cfg_ = t["stt"] if repo == active_stt else _mlx(repo)
-            stt_models.append({"repo": repo, "label": repo, "mb": None, "wer": None, "sec": None, "note": "Modello scelto da te.",
+            stt_models.append({"repo": repo, "label": repo, "mb": None, "wer": None, "sec": None, "note": i18n.pick("Modello scelto da te.", ui_en.CHOSEN_BY_YOU),
                                "installed": stt_installed(cfg_), "custom": True})
     _remove_flags(stt_models, "repo", active_stt)
 
     llm_models, seen = [], set()
     for c in P.LLM_CATALOG:
         seen.add(c["ref"])
-        llm_models.append({"ref": c["ref"], "source": "mlx", "label": c["label"] + P.vision_tag(c["ref"]), "gb": c["gb"], "note": c["note"], "heavy": c["gb"] >= 7.0,
+        llm_models.append({"ref": c["ref"], "source": "mlx", "label": c["label"] + P.vision_tag(c["ref"]), "gb": c["gb"], "note": P.llm_note(c), "heavy": c["gb"] >= 7.0,
                            "reasoning": False, "installed": mlx_lm_installed(c["ref"][4:]), "custom": False})
     for m in (llms or []):
         seen.add(m["name"])
-        llm_models.append({"ref": m["name"], "source": "ollama", "label": m["name"], "gb": m["gb"], "note": "Installato con Ollama.",
+        llm_models.append({"ref": m["name"], "source": "ollama", "label": m["name"], "gb": m["gb"], "note": i18n.pick("Installato con Ollama.", ui_en.INSTALLED_WITH_OLLAMA),
                            "heavy": m["heavy"], "reasoning": m["reasoning"], "installed": True, "custom": False})
     for ref in [x for x in (extra_llm, settings.get("llm_model"), t["llm"]) if x]:
         if ref not in seen:
             seen.add(ref)
             llm_models.append({"ref": ref, "source": "mlx" if P.is_mlx_ref(ref) else "ollama", "label": P.llm_label(ref) + P.vision_tag(ref), "gb": None,
-                               "note": "Modello scelto da te.", "heavy": False, "reasoning": P.needs_no_think(ref),
+                               "note": i18n.pick("Modello scelto da te.", ui_en.CHOSEN_BY_YOU), "heavy": False, "reasoning": P.needs_no_think(ref),
                                "installed": llm_ready(ref, llms), "custom": True})
     _remove_flags(llm_models, "ref", t["llm"])
     return {
@@ -272,7 +281,39 @@ def status(config_path: str, llms="auto", extra_stt: str | None = None, extra_ll
         "workspace": workspace_status(config_path),
         "powers": powers_status(config_path),
         "wake_phrase": _wake_status(config_path),
+        "language": language_status(config_path),
     }
+
+
+# ------------------------------------------------------------------------------------ la lingua
+def _config_language(config_path: str) -> str | None:
+    try:
+        return i18n.clean(cfgmod.load(config_path, settings=False).get("language"))
+    except Exception:                                    # noqa: BLE001
+        return None
+
+
+def current_language(config_path: str) -> str:
+    """La lingua in uso: Impostazioni > config.yaml > lingua del sistema."""
+    return i18n.resolve(P.get_language(config_path), _config_language(config_path))
+
+
+def language_status(config_path: str) -> dict:
+    """{current, chosen, system, supported}: `chosen` e' None finche' non si sceglie (allora vale la lingua del sistema)."""
+    return {"current": current_language(config_path), "chosen": P.get_language(config_path), "system": i18n.system_language(), "supported": list(i18n.SUPPORTED)}
+
+
+def language_set(config_path: str, code: str) -> dict:
+    """Sceglie la lingua di Aria («it», «en») o torna alla lingua del sistema («auto»). Il cervello la applica al riavvio (lo fa l'app)."""
+    c = (code or "").strip().lower()
+    if c in ("auto", "system", "default", "clear", ""):
+        P.set_language(config_path, None)
+    elif i18n.clean(c):
+        P.set_language(config_path, c)
+    else:
+        return {"ok": False, "error": i18n.pick(f"lingua sconosciuta: {code} (usa it, en o auto)", ui_en.MSG["language_unknown"].format(code=code))}
+    i18n.set_language(current_language(config_path))
+    return {"ok": True, **language_status(config_path)}
 
 
 def _wake_status(config_path: str) -> str:
@@ -286,7 +327,7 @@ def _wake_status(config_path: str) -> str:
 def wake_set(config_path: str, phrase: str) -> dict:
     p = P.clean_wake_phrase(phrase)
     if not p:
-        return {"ok": False, "error": "Scrivi due o tre parole, ad esempio «Hey Aria» o «Ciao Aria»: con una parola sola si sveglierebbe ogni volta che la senti in una frase."}
+        return {"ok": False, "error": i18n.pick("Scrivi due o tre parole, ad esempio «Hey Aria» o «Ciao Aria»: con una parola sola si sveglierebbe ogni volta che la senti in una frase.", ui_en.MSG["wake_bad"])}
     P.set_wake_phrase(config_path, p)
     return {"ok": True, "wake_phrase": p}
 
@@ -298,13 +339,18 @@ def _screen_hint(name: str, config_path: str) -> str:
     import os
     from . import screen as S
     if name == "screen_mac":
-        return "" if os.path.exists(S.OCR_HELPER) else " ⚠︎ Manca il programma che legge lo schermo: rilancia l'installazione."
+        return "" if os.path.exists(S.OCR_HELPER) else i18n.pick(" ⚠︎ Manca il programma che legge lo schermo: rilancia l'installazione.", ui_en.SCREEN_NO_HELPER)
     chat = P.load_settings(config_path).get("llm_model")
     model = (chat[4:] if chat and P.has_vision(chat) and P.is_mlx_ref(chat) else S.DEFAULT_VISION)
     try:
         ready = mlx_lm_installed(model)
     except Exception:                                                                    # noqa: BLE001
         ready = False
+    if i18n.is_en():
+        out = ui_en.SCREEN_HINT.format(model=P.llm_label('mlx:' + model)) + (ui_en.SCREEN_READY if ready else ui_en.SCREEN_TO_DOWNLOAD)
+        if importlib.util.find_spec("mlx_vlm") is None:
+            out += ui_en.SCREEN_NO_VLM
+        return out
     out = (f" Modelli che vedono le immagini: Gemma 4 (E4B, 12B). Non vedono: Gemma 2 9B e Gemma 3 (1B, 4B, 12B). Userà {P.llm_label('mlx:' + model)}: "
            + ("già sul Mac." if ready else "da scaricare (sceglilo tra i chatbot e premi «Scarica»)."))
     if importlib.util.find_spec("mlx_vlm") is None:
@@ -313,6 +359,8 @@ def _screen_hint(name: str, config_path: str) -> str:
 
 
 def _voice_hint() -> str:
+    if i18n.is_en():
+        return ""                                                          # in inglese la voce naturale non c'e': il testo della funzione lo dice
     try:
         from .tts import QwenTTS
         q = QwenTTS({})
@@ -328,12 +376,12 @@ def _voice_hint() -> str:
 def powers_status(config_path: str) -> list[dict]:
     """I poteri di Aria sul Mac con il loro interruttore: [{id, label, hint, enabled}]."""
     on = P.get_powers(config_path)
-    return [{"id": k, "label": v[0], "hint": v[1] + (_screen_hint(k, config_path) if k in ("screen_mac", "screen_model") else _voice_hint() if k == "voice_natural" else ""), "enabled": on[k]} for k, v in P.POWERS.items()]
+    return [{"id": k, "label": P.power_text(k)[0], "hint": P.power_text(k)[1] + (_screen_hint(k, config_path) if k in ("screen_mac", "screen_model") else _voice_hint() if k == "voice_natural" else ""), "enabled": on[k]} for k in P.POWERS]
 
 
 def power_set(config_path: str, name: str, enabled: bool) -> dict:
     if name not in P.POWERS:
-        return {"ok": False, "error": f"funzione sconosciuta: {name}"}
+        return {"ok": False, "error": i18n.pick(f"funzione sconosciuta: {name}", ui_en.MSG["unknown_feature"].format(name=name))}
     P.set_power(config_path, name, enabled)
     return {"ok": True, "powers": powers_status(config_path)}
 
@@ -450,7 +498,7 @@ def ollama_pull(model: str, total_hint: int, out=emit, client=None) -> None:
                 out(event="progress", item="llm", name=model, done=sum(c for _, c in layers.values()), total=total, status=ev.get("status", ""))
             if ev.get("status") == "success":
                 return
-    raise RuntimeError("il download si e' interrotto prima della fine")
+    raise RuntimeError(i18n.pick("il download si e' interrotto prima della fine", ui_en.MSG["dl_interrupted"]))
 
 
 def _ensure_ollama(wait_s: float = 25.0) -> bool:
@@ -461,11 +509,11 @@ def _ensure_ollama(wait_s: float = 25.0) -> bool:
 
 def _check_names(stt: str | None, llm: str | None) -> str | None:
     if stt and not P.valid_repo(stt):
-        return f"Il nome del modello di riconoscimento vocale non e' valido: '{stt}' (serve il formato organizzazione/nome, ad esempio mlx-community/whisper-small-mlx)."
+        return i18n.pick(f"Il nome del modello di riconoscimento vocale non e' valido: '{stt}' (serve il formato organizzazione/nome, ad esempio mlx-community/whisper-small-mlx).", ui_en.MSG["bad_stt_name"].format(name=stt))
     if llm:
         ok = P.valid_repo(llm[4:]) if P.is_mlx_ref(llm) else P.valid_ollama_name(llm)
         if not ok:
-            return f"Il nome del chatbot non e' valido: '{llm}' (un nome di Ollama come llama3.1:8b, oppure un modello MLX come mlx-community/gemma-3-text-4b-it-4bit)."
+            return i18n.pick(f"Il nome del chatbot non e' valido: '{llm}' (un nome di Ollama come llama3.1:8b, oppure un modello MLX come mlx-community/gemma-3-text-4b-it-4bit).", ui_en.MSG["bad_llm_name"].format(name=llm))
     return None
 
 
@@ -483,7 +531,7 @@ def _llm_bytes(ref: str, profile: str, preset_llm: str | None) -> int:
 def download(config_path: str, profile: str, llm_override: str | None = None, stt_override: str | None = None, out=emit) -> bool:
     """Scarica i pezzi mancanti di una scelta (riconoscimento vocale, poi chatbot). Restituisce True se alla fine c'e' tutto."""
     if profile not in P.PROFILES and profile != P.CUSTOM:
-        out(event="error", message=f"versione sconosciuta: {profile}")
+        out(event="error", message=i18n.pick(f"versione sconosciuta: {profile}", ui_en.MSG["unknown_version"].format(profile=profile)))
         return False
     bad = _check_names(stt_override, llm_override)
     if bad:
@@ -494,24 +542,25 @@ def download(config_path: str, profile: str, llm_override: str | None = None, st
     repo, llm = P.stt_repo(t["stt"]), t["llm"]
     need_stt = not stt_installed(t["stt"])
     if need_stt and t["stt"].get("kind") == "apple":
-        out(event="error", message="Manca il programma di supporto per il riconoscimento di Apple: rilancia app/install.sh (lo compila).")
+        out(event="error", message=i18n.pick("Manca il programma di supporto per il riconoscimento di Apple: rilancia app/install.sh (lo compila).", ui_en.MSG["no_apple_helper"]))
         return False
     llms = installed_llms()
     need_llm = not llm_ready(llm, llms)
     try:
         stt_bytes = int(P.STT_MB[repo] * 1e6) if repo in P.STT_MB else (hf_total_bytes(repo) if need_stt else 0)
     except Exception as e:                               # noqa: BLE001
-        out(event="error", message=f"Non trovo il modello '{repo}' su Hugging Face ({type(e).__name__}). Controlla il nome e la connessione.")
+        out(event="error", message=i18n.pick(f"Non trovo il modello '{repo}' su Hugging Face ({type(e).__name__}). Controlla il nome e la connessione.", ui_en.MSG["hf_not_found_stt"].format(repo=repo, err=type(e).__name__)))
         return False
     try:
         llm_bytes = _llm_bytes(llm, t["profile"], t["preset_llm"]) if need_llm else 0
     except Exception as e:                               # noqa: BLE001
-        out(event="error", message=f"Non trovo il chatbot '{llm}' su Hugging Face ({type(e).__name__}). Controlla il nome e la connessione.")
+        out(event="error", message=i18n.pick(f"Non trovo il chatbot '{llm}' su Hugging Face ({type(e).__name__}). Controlla il nome e la connessione.", ui_en.MSG["hf_not_found_llm"].format(llm=llm, err=type(e).__name__)))
         return False
     need = (stt_bytes if need_stt else 0) + (llm_bytes if need_llm else 0)
     free = disk_free_gb() * 1e9
     if need and free < need + MARGIN_GB * 1e9:
-        out(event="error", message=f"Spazio insufficiente: servono circa {need / 1e9:.1f} GB (piu' {MARGIN_GB:.1f} GB di margine) e ne hai {free / 1e9:.1f} GB liberi.")
+        out(event="error", message=i18n.pick(f"Spazio insufficiente: servono circa {need / 1e9:.1f} GB (piu' {MARGIN_GB:.1f} GB di margine) e ne hai {free / 1e9:.1f} GB liberi.",
+                                             ui_en.MSG["no_space"].format(need=need / 1e9, margin=MARGIN_GB, free=free / 1e9)))
         return False
     try:
         if need_stt:
@@ -532,7 +581,7 @@ def download(config_path: str, profile: str, llm_override: str | None = None, st
             out(event="done", item="llm", name=llm)
         elif need_llm:
             if not _ensure_ollama():
-                out(event="error", message="Ollama non e' acceso: aprilo e riprova (oppure scegli un chatbot MLX, che non lo richiede).")
+                out(event="error", message=i18n.pick("Ollama non e' acceso: aprilo e riprova (oppure scegli un chatbot MLX, che non lo richiede).", ui_en.MSG["ollama_off"]))
                 return False
             out(event="start", item="llm", name=llm, label=llm, total=llm_bytes)
             ollama_pull(llm, llm_bytes, out)
@@ -548,7 +597,7 @@ def download(config_path: str, profile: str, llm_override: str | None = None, st
 def apply(config_path: str, profile: str, llm_override: str | None = None, stt_override: str | None = None, llms="auto") -> dict:
     """Salva la scelta in settings.json, ma solo se i pezzi sono installati (altrimenti l'app resterebbe muta)."""
     if profile not in P.PROFILES and profile != P.CUSTOM:
-        return {"ok": False, "error": f"versione sconosciuta: {profile}"}
+        return {"ok": False, "error": i18n.pick(f"versione sconosciuta: {profile}", ui_en.MSG["unknown_version"].format(profile=profile))}
     bad = _check_names(stt_override, llm_override)
     if bad:
         return {"ok": False, "error": bad}
@@ -557,16 +606,16 @@ def apply(config_path: str, profile: str, llm_override: str | None = None, stt_o
     repo = P.stt_repo(t["stt"])
     if not stt_installed(t["stt"]):
         why = mlx_whisper_problem(repo) if t["stt"].get("kind") == "mlx-whisper" else None
-        return {"ok": False, "error": f"Il riconoscimento vocale '{repo}' {why or 'non e'' ancora scaricato'}."}
+        return {"ok": False, "error": i18n.pick(f"Il riconoscimento vocale '{repo}' {why or 'non e'' ancora scaricato'}.", ui_en.MSG["stt_not_ready"].format(repo=repo, why=why or ui_en.MSG["stt_not_downloaded"]))}
     if not P.is_mlx_ref(t["llm"]):
         llms = installed_llms() if llms == "auto" else llms
         if llms is None:
-            return {"ok": False, "error": "Ollama non risponde: aprilo e riprova (oppure scegli un chatbot MLX, che non lo richiede)."}
+            return {"ok": False, "error": i18n.pick("Ollama non risponde: aprilo e riprova (oppure scegli un chatbot MLX, che non lo richiede).", ui_en.MSG["ollama_no_answer"])}
         if not _llm_known(t["llm"], llms):
-            return {"ok": False, "error": f"Il chatbot '{t['llm']}' non e' installato."}
+            return {"ok": False, "error": i18n.pick(f"Il chatbot '{t['llm']}' non e' installato.", ui_en.MSG["llm_not_installed"].format(llm=t["llm"]))}
     elif not mlx_lm_installed(t["llm"][4:]):
         why = mlx_lm_problem(t["llm"][4:])
-        return {"ok": False, "error": f"Il chatbot '{t['llm'][4:]}' {why or 'non e'' ancora scaricato'}."}
+        return {"ok": False, "error": i18n.pick(f"Il chatbot '{t['llm'][4:]}' {why or 'non e'' ancora scaricato'}.", ui_en.MSG["llm_not_ready"].format(repo=t["llm"][4:], why=why or ui_en.MSG["llm_not_downloaded"]))}
     if t["profile"] == P.CUSTOM:
         settings = {"profile": P.CUSTOM, "stt_model": repo, "llm_model": t["llm"]}
     else:
@@ -601,7 +650,7 @@ def remove(config_path: str, kind: str, ident: str, st: dict | None = None, clie
     """Toglie un modello dal Mac. Mai quello in uso, mai l'ultimo installato (Aria non funzionerebbe piu').
     kind = 'stt' (ident = repo Hugging Face) | 'llm' (ident = riferimento: mlx:org/nome oppure nome di Ollama)."""
     if kind not in ("stt", "llm"):
-        return {"ok": False, "error": f"cosa vuoi rimuovere? 'stt' o 'llm', non '{kind}'"}
+        return {"ok": False, "error": i18n.pick(f"cosa vuoi rimuovere? 'stt' o 'llm', non '{kind}'", ui_en.MSG["remove_what"].format(kind=kind))}
     bad = _check_names(ident if kind == "stt" else None, ident if kind == "llm" else None)
     if bad:
         return {"ok": False, "error": bad}
@@ -610,24 +659,24 @@ def remove(config_path: str, kind: str, ident: str, st: dict | None = None, clie
     key = "repo" if kind == "stt" else "ref"
     e = next((m for m in entries if m[key] == ident), None)
     if e is None or not e["installed"]:
-        return {"ok": False, "error": "Questo modello non e' installato."}
+        return {"ok": False, "error": i18n.pick("Questo modello non e' installato.", ui_en.MSG["not_installed"])}
     if e["block"] == "in uso":
-        return {"ok": False, "error": "E' il modello che Aria sta usando: scegline prima un altro e applica."}
+        return {"ok": False, "error": i18n.pick("E' il modello che Aria sta usando: scegline prima un altro e applica.", ui_en.MSG["in_use"])}
     if e["block"]:
-        return {"ok": False, "error": "E' l'unico installato: Aria ha bisogno di almeno un modello per funzionare."}
+        return {"ok": False, "error": i18n.pick("E' l'unico installato: Aria ha bisogno di almeno un modello per funzionare.", ui_en.MSG["last_one"])}
     if kind == "llm" and not P.is_mlx_ref(ident):                    # modello di Ollama
         import httpx
         try:
             r = (client or httpx).request("DELETE", OLLAMA + "/api/delete", json={"model": ident}, timeout=30.0)
             r.raise_for_status()
         except Exception as ex:                                      # noqa: BLE001
-            return {"ok": False, "error": f"Ollama non l'ha rimosso ({type(ex).__name__})."}
+            return {"ok": False, "error": i18n.pick(f"Ollama non l'ha rimosso ({type(ex).__name__}).", ui_en.MSG["ollama_not_removed"].format(err=type(ex).__name__))}
         return {"ok": True, "freed_mb": round((e.get("gb") or 0) * 1000)}
     repo = ident if kind == "stt" else ident[4:]
     d = _hf_dir(repo)
     from huggingface_hub import constants
     if not os.path.realpath(d).startswith(os.path.realpath(constants.HF_HUB_CACHE) + os.sep) or not os.path.basename(d).startswith("models--"):
-        return {"ok": False, "error": "Percorso non valido: non rimuovo nulla."}           # per sicurezza: solo dentro la cache dei modelli
+        return {"ok": False, "error": i18n.pick("Percorso non valido: non rimuovo nulla.", ui_en.MSG["bad_path"])}           # per sicurezza: solo dentro la cache dei modelli
     freed = _tree_size(d)
     shutil.rmtree(d, ignore_errors=True)
     return {"ok": True, "freed_mb": round(freed / 1e6)}
@@ -635,7 +684,7 @@ def remove(config_path: str, kind: str, ident: str, st: dict | None = None, clie
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="aria.models")
-    ap.add_argument("cmd", choices=["status", "download", "apply", "remove", "workspace", "power", "wake"])
+    ap.add_argument("cmd", choices=["status", "download", "apply", "remove", "workspace", "power", "wake", "language"])
     ap.add_argument("profile", nargs="?")
     ap.add_argument("ident", nargs="?")
     ap.add_argument("--config", required=True)
@@ -644,6 +693,11 @@ def main(argv=None) -> int:
     ap.add_argument("--extra-stt")
     ap.add_argument("--extra-llm")
     a = ap.parse_args(argv)
+    i18n.set_language(current_language(a.config))                              # i testi (stato, errori, descrizioni) escono nella lingua scelta
+    if a.cmd == "language":                                                    # language status | language set it|en|auto
+        res = language_set(a.config, a.ident or "") if a.profile == "set" else {"ok": True, **language_status(a.config)}
+        print(json.dumps(res, ensure_ascii=False))
+        return 0 if res["ok"] else 1
     if a.cmd == "status":
         print(json.dumps(status(a.config, extra_stt=a.extra_stt, extra_llm=a.extra_llm), ensure_ascii=False))
         return 0
@@ -671,7 +725,7 @@ def main(argv=None) -> int:
         print(json.dumps(res, ensure_ascii=False))
         return 0 if res["ok"] else 1
     if not a.profile:
-        ap.error("serve la versione: leggera, media, pesante o personalizzata")
+        ap.error(i18n.pick("serve la versione: leggera, media, pesante o personalizzata", ui_en.MSG["need_version"]))
     if a.cmd == "download":
         return 0 if download(a.config, a.profile, a.llm, a.stt) else 1
     res = apply(a.config, a.profile, a.llm, a.stt)

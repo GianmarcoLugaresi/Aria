@@ -7,7 +7,8 @@ from __future__ import annotations
 import threading
 import time
 
-from . import paths, win32
+from . import l10n, paths, win32
+from .l10n import tr
 
 SIZE = (520, 330)
 TITLE = "Aria · schermata"
@@ -15,8 +16,9 @@ RISE = 26                                                       # quanto sale (p
 BOTTOM_MARGIN = 64
 
 
-def page_url() -> str:
-    return (paths.resources_dir() / "overlay.html").as_uri()
+def page_url(lang: str | None = None) -> str:
+    """La pagina della schermata, nella lingua di Aria (overlay.html legge `?lang=`: i testi sono in italiano o in inglese)."""
+    return (paths.resources_dir() / "overlay.html").as_uri() + "?lang=" + (lang or l10n.code())
 
 
 def target_origin(area: tuple[int, int, int, int], size: tuple[int, int] = SIZE) -> tuple[int, int]:
@@ -78,7 +80,7 @@ class WebviewDriver:
         try:
             import webview
         except ImportError:
-            paths.log("pywebview non installato: niente schermata, resta l'icona")
+            paths.log(tr("pywebview non installato: niente schermata, resta l'icona", "pywebview is not installed: no overlay, the tray icon remains"))
             return False
         x, y = target_origin(win32.work_area())
         kw = dict(url=page_url(), width=SIZE[0], height=SIZE[1], x=x, y=y + RISE, frameless=True, on_top=True, transparent=True, resizable=False,
@@ -90,7 +92,7 @@ class WebviewDriver:
             except TypeError as e:
                 bad = next((k for k in list(kw) if k in str(e)), None)
                 if bad is None or bad in ("url", "width", "height"):
-                    paths.log(f"schermata non creata: {e}")
+                    paths.log(tr(f"schermata non creata: {e}", f"overlay not created: {e}"))
                     return False
                 kw.pop(bad)
         self.available = True
@@ -136,7 +138,7 @@ class WebviewDriver:
             self.window.move(x, y)
             self._fade(0, 255)
         except Exception as e:                                                           # noqa: BLE001
-            paths.log(f"schermata: non riesco a mostrarla ({e})")
+            paths.log(tr(f"schermata: non riesco a mostrarla ({e})", f"overlay: I can't show it ({e})"))
 
     def disappear(self) -> None:
         if self.window is None:
@@ -145,7 +147,17 @@ class WebviewDriver:
             self._fade(255, 0)
             self.window.hide()
         except Exception as e:                                                           # noqa: BLE001
-            paths.log(f"schermata: non riesco a nasconderla ({e})")
+            paths.log(tr(f"schermata: non riesco a nasconderla ({e})", f"overlay: I can't hide it ({e})"))
+
+    def set_language(self, code: str) -> None:
+        """Cambia la lingua dei testi della schermata senza ricaricarla (come Overlay.setLanguage sul Mac)."""
+        if self.window is None:
+            return
+        lang = "en" if code == "en" else "it"
+        try:
+            self.window.evaluate_js(f"window.ARIA_LANG = '{lang}'; window.ariaLang && window.ariaLang('{lang}')")
+        except Exception as e:                                                           # noqa: BLE001
+            paths.log(tr(f"schermata: non riesco a cambiarle lingua ({e})", f"overlay: I can't change its language ({e})"))
 
     def destroy(self) -> None:
         try:

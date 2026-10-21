@@ -4,6 +4,7 @@
 name: Aria
 location: {city: null, lat: null, lon: null}    # la città te la chiede Aria e la ricorda lei; scrivila qui solo per forzarla (con lat e lon)
 persona_file: persona.md                         # il carattere di Aria (accanto a questo file): puoi modificarlo a piacere
+# language: en                                  # la lingua di Aria: it | en. Di solito si sceglie dal menu dell'icona (Lingua); se non c'e' nessuna scelta segue la lingua di Windows
 
 wake:
   phrase: "hey aria"
